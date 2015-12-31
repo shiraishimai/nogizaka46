@@ -5,26 +5,44 @@ var fs = require('graceful-fs'),
     http = require('http');
 
 class ImageSearcher {
-    constructor(sourceUrl) {
+    constructor(sourceUrl, limit) {
         this.sourceUrl = sourceUrl;
         this.failTolerance = 5;
+        this.readCount = 0;
+        this.limit = limit;
         this.index = 0;
     }
     getImage() {
         let image = {},
             reg = new RegExp(/\d+(?!.*\d)/),
             target = this.sourceUrl.match(reg).toString();
-        // image.requestUrl = this.sourceUrl.replace(reg, Util.zpad(this.index++, target.length));
-        image.requestUrl = this.sourceUrl.replace(reg, this.index++);
+        switch (true) {
+            // Padding zero
+            case !!~this.sourceUrl.indexOf('natalie'):
+                image.requestUrl = this.sourceUrl.replace(reg, Util.zpad(this.index++, target.length));
+                break;
+            // No padding
+            case !!~this.sourceUrl.indexOf('tokyopopline'):
+            case !!~this.sourceUrl.indexOf('mdpr'):
+            default:
+                image.requestUrl = this.sourceUrl.replace(reg, this.index++);
+                break;
+        }
         return image;
+    }
+    parseAt() {
+        let reg = new RegExp(/\d+(?!.*\d)/),
+            target = this.sourceUrl.match(reg).toString();
+        this.index = parseInt(target);
+        return this.parse();
     }
     parse() {
         // Break down links
         let attempt = success => {
-                if (!success) this.failTolerance--;
-                if (this.failTolerance <= 0) return; // Exit
-                return this.imageRequest(this.getImage(), attempt);
-            };
+            if (!success) this.failTolerance--;
+            if (this.failTolerance <= 0) return; // Exit
+            return this.imageRequest(this.getImage(), attempt);
+        };
         // Attempts
         this.imageRequest(this.getImage(), () => {});  // Force attempt
         this.imageRequest(this.getImage(), attempt);
@@ -32,6 +50,7 @@ class ImageSearcher {
     imageRequest(image, callback) {
         let signature = '[ImageSearcher imageRequest]';
         if (!image.requestUrl) return console.warn(signature, 'RequestUrl empty!');
+        if (this.readCount >= this.limit) return console.log(signature, 'Limit reached!');   // Exit
         console.log(signature, image.requestUrl);
         Util.request(signature, image.requestUrl, result => {
             if (result.statusCode !== 200) {
@@ -41,6 +60,7 @@ class ImageSearcher {
             // Bounce back
             console.log(signature, 'OK', image.requestUrl);
             callback(true);
+            this.readCount++;
             this.saveImageFromStream(signature, image, result, success => {
                 // @TODO callback?                   
             });

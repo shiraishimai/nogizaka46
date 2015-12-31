@@ -123,4 +123,8 @@ require('babel-register');
 // console.log(util.zpad(123, 6));
 
 var ImageSearcher = require('./ImageSearcher.js');
-(new ImageSearcher('http://tokyopopline.com/images/2015/12/151229nogizaka18.jpg')).parse();
+(new ImageSearcher('http://tokyopopline.com/images/2015/12/151230sachiko1.jpg')).parse();
+// (new ImageSearcher('http://tokyopopline.com/images/2015/12/151229nogizaka18.jpg')).parse();
+// (new ImageSearcher('http://cdn2.natalie.mu/media/1512/1229/kohaku29/nogizaka46/extra/news_large_nogizaka46_kohaku29_01.jpg')).parse();
+// (new ImageSearcher('http://cdn2.natalie.mu/media/1512/1229/kohaku29/nogizaka46/extra/news_large_nogizaka46_kohaku29_01.jpg')).parse();
+// (new ImageSearcher('http://mdpr.jp/photo/images/2015/12/29/w788c-e_1935728.jpg', 30)).parseAt();
