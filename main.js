@@ -1,9 +1,9 @@
 require('babel-register');
 
-var BlogParser = require('./BlogParser.js');
-(new BlogParser()).parse(() => {
-	console.log('Complete');
-});
+// var BlogParser = require('./BlogParser.js');
+// (new BlogParser()).parse(() => {
+// 	console.log('Complete');
+// });
 
 // var BlogParser = require('./BlogParser.js'),
 // 	parsers = [];
@@ -118,3 +118,9 @@ var BlogParser = require('./BlogParser.js');
 // 	}
 // 	console.log(item.id);
 // }, 15*1000);
+
+// var util = require('./Util.js');
+// console.log(util.zpad(123, 6));
+
+var ImageSearcher = require('./ImageSearcher.js');
+(new ImageSearcher('http://tokyopopline.com/images/2015/12/151229nogizaka18.jpg')).parse();

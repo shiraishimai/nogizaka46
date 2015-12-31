@@ -10,6 +10,12 @@ class Util {
             console.log(caller, 'Error:', error);
         }).end();
     }
+    
+    static zpad(x, zeros) { 
+        x = x.toString();
+        if (x.length >= zeros) return x;
+        return ('0'.repeat(zeros) + x).slice(-zeros); 
+    }
 
     static getUID() {
         return ++uid;
