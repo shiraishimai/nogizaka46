@@ -1,4 +1,5 @@
 require('babel-register');
+require('./server.js');
 
 // var BlogParser = require('./BlogParser.js');
 // (new BlogParser()).parse(() => {
@@ -122,20 +123,23 @@ require('babel-register');
 // var util = require('./Util.js');
 // console.log(util.zpad(123, 6));
 
-var ImageSearcher = require('./ImageSearcher.js');
+// var ImageSearcher = require('./ImageSearcher.js');
 // (new ImageSearcher('http://tokyopopline.com/images/2015/12/151230kouhaku5.jpg')).parseAt();
 // (new ImageSearcher('http://tokyopopline.com/images/2015/12/151230sachiko1.jpg')).parse();
 // (new ImageSearcher('http://tokyopopline.com/images/2015/12/151229nogizaka18.jpg')).parse();
 // (new ImageSearcher('http://cdn2.natalie.mu/media/1512/1229/kohaku29/nogizaka46/extra/news_large_nogizaka46_kohaku29_01.jpg')).parse();
+// ImageSearcher('http://www.wws-channel.com/music/nhk-kouhaku_2015/images/nogizaka46/00.jpg').parse();
 // (new ImageSearcher('http://cdn2.natalie.mu/media/1512/1229/kohaku29/nogizaka46/extra/news_large_nogizaka46_kohaku29_01.jpg')).parse();
 // (new ImageSearcher('http://mdpr.jp/photo/images/2015/12/29/w788c-e_1935728.jpg', 30)).parseAt();
 // ImageSearcher('http://storage.mantan-web.jp/images/2015/12/24/20151224dog00m200017000c/001_size6.jpg').parse();
 // ImageSearcher('http://storage.mantan-web.jp/images/2015/12/30/20151230dog00m200018000c/021_size6.jpg').parse()
+// ImageSearcher('http://storage.mantan-web.jp/images/2015/12/29/20151229dog00m200047000c/018_size10.jpg').parse()
 
 // @TODO
 // (new ImageSearcher('http://tokyopopline.com/archives/54057')).crawl();
 
 // http://mantan-web.jp/gallery/2015/12/30/20151230dog00m200057000c/002.html
 // http://news.dwango.jp/2015/12/31/69608/idol/
-// http://storage.mantan-web.jp/images/2015/12/30/20151230dog00m200018000c/002_size10.jpg
-// http://storage.mantan-web.jp/images/2015/12/29/20151229dog00m200047000c/018_size10.jpg
+
+var SessionManager = require('./SessionManager.js');
+SessionManager.setToken('./imgData/00.jpg');

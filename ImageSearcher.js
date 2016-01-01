@@ -20,6 +20,7 @@ class BaseImageSearcher {
         switch (true) {
             // Padding zero
             case !!~this.sourceUrl.indexOf('natalie'):
+            case !!~this.sourceUrl.indexOf('wws'):
                 image.requestUrl = this.sourceUrl.replace(reg, Util.zpad(this.index++, target.length));
                 break;
             // No padding
@@ -109,7 +110,6 @@ class QualityImageSearcher extends BaseImageSearcher {
                 return this.imageRequest(image, qualityAttempt);
             };
         // Attempts
-        // Break down links
         this.imageRequest(this.getImage(), qualityAttempt);
     }
 }
