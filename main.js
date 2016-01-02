@@ -1,4 +1,6 @@
-require('babel-register');
+require('babel-register')({
+    presets: ["react"]
+});
 require('./server.js');
 
 // var BlogParser = require('./BlogParser.js');
