@@ -51,16 +51,24 @@ module.exports = React.createClass({
         //         })  
         //     })
         // );
-        return React.DOM.div({className: "main"}, 
-            // React.DOM.div({className: "container"},
-            //     React.DOM.h2(null, "Testing")
-            // ) 
-            React.DOM.div({
-                className: "container",
-                children: this.state.columns.map((column) => {
-                    return <Column data={column} />;
-                })
-            })
-        );
+        // return React.DOM.div({className: "main"}, 
+        //     // React.DOM.div({className: "container"},
+        //     //     React.DOM.h2(null, "Testing")
+        //     // ) 
+        //     React.DOM.div({
+        //         className: "container",
+        //         children: this.state.columns.map((column) => {
+        //             return <Column data={column} />;
+        //         })
+        //     })
+        // );
+        let columns = this.state.columns.map((column) => {
+            return <Column data={column} key={column} />;
+        });
+        return <div className="main">
+            <div className="container">
+                {columns}
+            </div>
+        </div>;
     }
 });
