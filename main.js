@@ -25,11 +25,13 @@ require('babel-register')({
 // console.log(Util.getUID());
 
 // var http = require('http');
-// // http.request('http://storage.mantan-web.jp/images/2015/12/29/20151229dog00m200047000c/018_size10.jpg', function(result) {
-// http.request('http://blog.nogizaka46.com/?p=5&d=20151201', function(result) {
-// 	// console.log(result.req);
+// // // http.request('http://storage.mantan-web.jp/images/2015/12/29/20151229dog00m200047000c/018_size10.jpg', function(result) {
+// http.request('http://cfile10.uf.tistory.com/original/244B1D4854ACF89B11E958', function(result) {
+// // 	console.log(result.req);
 // 	// console.log(result.req.path);
-// 	console.log(result.statusCode);
+// // 	console.log(result.statusCode);
+//     var dataDisposition = result.headers['content-disposition'];
+    
 // }).end()
 
 // var path = require('path');
@@ -159,3 +161,6 @@ require('babel-register')({
 // (new TwitterParser('https://twitter.com/BLTTV/status/680643873786310656')).parse();
 // (new TwitterParser('https://twitter.com/BLTTV/status/680328351848857600')).parse();
 // (new TwitterParser('https://twitter.com/BLTTV/status/679906389674754050')).parse();
+
+// ImageSearcher('http://chisaem.tistory.com/164').parse();
+// ImageSearcher('http://940525.tistory.com/90').parse();

@@ -1,12 +1,46 @@
 'use strict';
-var fs = require('graceful-fs'),
+var cheerio = require('cheerio'),
+    fs = require('graceful-fs'),
     Util = require('./Util.js'),
     path = require('path'),
     http = require('http');
-    
-class BaseImageSearcher {
-    constructor(sourceUrl, limit) {
+class ImageFetcher {
+    constructor(sourceUrl) {
         this.sourceUrl = sourceUrl;
+    }
+    imageRequest(image, callback) {
+        let signature = '[ImageFetcher imageRequest]';
+        if (!image.requestUrl) return console.warn(signature, 'RequestUrl empty!');
+        console.log(signature, image.requestUrl);
+        Util.request(signature, image.requestUrl, result => {
+            if (result.statusCode !== 200) {
+                return console.log(signature, 'Error status:', result.statusCode, image.requestUrl);
+            }
+            // Bounce back
+            console.log(signature, 'OK', image.requestUrl);
+            this.saveImageFromStream(signature, image, result, success => {
+                // @TODO callback?
+            });
+        });
+    }
+    saveImageFromStream(caller, image, readStream, callback) {
+        let signature = '[ImageFetcher saveImageFromStream]',
+            dataDisposition = readStream.headers['content-disposition'],
+            filenameFound = dataDisposition.match(/filename=(.*)/),
+            filename, destination, writeStream;
+
+        filename = filenameFound.length >= 2 ? decodeURIComponent(filenameFound[1].replace(/['"]/g, '')) : path.basename(image.requestUrl);
+        destination = './imgData/' + filename,
+        writeStream = fs.createWriteStream(destination);
+        readStream.pipe(writeStream);
+        readStream.on('end', () => {
+            console.log(destination, 'saved!');
+        });
+    }
+}
+class ImageSearcher extends ImageFetcher {
+    constructor(sourceUrl, limit) {
+        super(sourceUrl);
         this.failTolerance = 5;
         this.readCount = 0;
         this.limit = limit;
@@ -51,36 +85,15 @@ class BaseImageSearcher {
     }
     imageRequest(image, callback) {
         let signature = '[ImageSearcher imageRequest]';
-        if (!image.requestUrl) return console.warn(signature, 'RequestUrl empty!');
         if (this.readCount >= this.limit) return console.log(signature, 'Limit reached!');   // Exit
-        console.log(signature, image.requestUrl);
-        Util.request(signature, image.requestUrl, result => {
-            if (result.statusCode !== 200) {
-                console.log(signature, 'Error status:', result.statusCode, image.requestUrl);
-                return callback(false, image);
-            }
-            // Bounce back
-            console.log(signature, 'OK', image.requestUrl);
-            callback(true, image);
-            this.readCount++;
-            this.saveImageFromStream(signature, image, result, success => {
-                // @TODO callback?                   
-            });
-        });
-    }
-    saveImageFromStream(caller, image, readStream, callback) {
-        let signature = '[ImageSearcher saveImageFromStream]',
-            destination = './imgData/' + path.basename(image.requestUrl),
-            writeStream = fs.createWriteStream(destination);
-        readStream.pipe(writeStream);
-        readStream.on('end', () => {
-            console.log(destination, 'saved!');
+        super.imageRequest(image, (success, image) => {
+            if (success) this.readCount++;
+            return callback(success, image);
         });
     }
 }
-
 // mantan-web.jp
-class QualityImageSearcher extends BaseImageSearcher {
+class QualityImageSearcher extends ImageSearcher {
     constructor(sourceUrl, limit) {
         super(sourceUrl, limit);
         this.failTolerance = 6;
@@ -114,11 +127,50 @@ class QualityImageSearcher extends BaseImageSearcher {
     }
 }
 
-let ImageSearcher = (sourceUrl, limit) => {
-    if (!!~sourceUrl.indexOf('mantan')) {
-        return new QualityImageSearcher(sourceUrl, limit);
+
+class HTMLSearcher extends ImageFetcher {
+    getBody(callback) {
+        let signature = '[HTMLSearcher getBody]';
+        Util.request(signature, this.sourceUrl, (result) => {
+            let body = "";
+            result.setEncoding('utf8');
+            result.on('data', line => { body+=line; }).on('end', () => {
+                callback(body);
+            });
+        });
     }
-    return new BaseImageSearcher(sourceUrl, limit);
+    fetchImageElement($) {
+        // @Abstract function
+        console.warn('[HTMLSearcher fetchImageElement] not implemented!');
+    }
+}
+class TistoryImageSearcher extends HTMLSearcher {
+    parse(callback) {
+        let signature = '[TistoryImageSearcher parse]';
+        this.getBody((body) => {
+            this.fetchImageElement(cheerio.load(body));
+        });
+    }
+    fetchImageElement($) {
+        let signature = '[TistoryImageSearcher fetchImageElement]';
+        console.log(signature);
+        $(".imageblock > span").each((function (index, imageElement) {
+            let image = {};
+            image.requestUrl = $(imageElement).attr('dir');
+            this.imageRequest(image);
+        }).bind(this));
+    }
+}
+
+let ImageSearcherMultiplexer = (sourceUrl, limit) => {
+    switch (true) {
+        case !!~sourceUrl.indexOf('mantan'):
+            return new QualityImageSearcher(sourceUrl, limit);
+        case !!~sourceUrl.indexOf('tistory'):
+            return new TistoryImageSearcher(sourceUrl);
+        default:
+            return new ImageSearcher(sourceUrl, limit);
+    }
 };
 
-module.exports = ImageSearcher;
+module.exports = ImageSearcherMultiplexer;
