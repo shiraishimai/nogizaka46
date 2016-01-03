@@ -48,7 +48,7 @@ class Parser {
 
         writePromise = new promise((resolve, reject) => {
             gmStream = gm(readStream).format(function(error, properties) {
-                if (error) return console.log(signature, 'Error identifying', fileSaveStream.req.path, error);
+                if (error) return console.log(signature, 'Error identifying', readStream.req.path, error);
                 // let fileExtension, destination, writeStream;
                 console.log(signature, properties);
                 switch (properties) {

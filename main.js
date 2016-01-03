@@ -1,7 +1,7 @@
 require('babel-register')({
     presets: ["react"]
 });
-require('./server.js');
+// require('./server.js');
 
 // var BlogParser = require('./BlogParser.js');
 // (new BlogParser()).parse(() => {
@@ -143,5 +143,19 @@ require('./server.js');
 // http://mantan-web.jp/gallery/2015/12/30/20151230dog00m200057000c/002.html
 // http://news.dwango.jp/2015/12/31/69608/idol/
 
-var SessionManager = require('./SessionManager.js');
-SessionManager.setToken('./imgData/00.jpg');
+// var SessionManager = require('./SessionManager.js');
+// SessionManager.setToken('./imgData/00.jpg');
+
+// var TwitterParser = require('./TwitterParser.js');
+// (new TwitterParser('https://twitter.com/BLTTV/status/683241261596147712')).parse();
+// (new TwitterParser('https://twitter.com/BLTTV/status/683225395378831360')).parse();
+// (new TwitterParser('https://twitter.com/BLTTV/status/683203401543323652')).parse();
+// (new TwitterParser('https://twitter.com/BLTTV/status/683200724562399233')).parse();
+// (new TwitterParser('https://twitter.com/BLTTV/status/683197791699513344')).parse();
+// (new TwitterParser('https://twitter.com/BLTTV/status/682194797893783553')).parse();
+// (new TwitterParser('https://twitter.com/BLTTV/status/681698310197936128')).parse();
+// (new TwitterParser('https://twitter.com/BLTTV/status/680997256661606400')).parse();
+// (new TwitterParser('https://twitter.com/BLTTV/status/680650526019616769')).parse();
+// (new TwitterParser('https://twitter.com/BLTTV/status/680643873786310656')).parse();
+// (new TwitterParser('https://twitter.com/BLTTV/status/680328351848857600')).parse();
+// (new TwitterParser('https://twitter.com/BLTTV/status/679906389674754050')).parse();
