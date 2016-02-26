@@ -2,22 +2,31 @@
 const PAGE_SIZE = 100;
 var React = require('react');
 
-let ImageComponent = React.createClass({
+// let ImageComponent = React.createClass({
+//     render() {
+//         let path = 'img/'+this.props.src;
+//         return <div className="nogi-popup"><img className="img-thumbnail" src={path} /></div>;
+//     }
+// });
+
+let ParseImageComponent = React.createClass({
     render() {
-        let path = 'img/'+this.props.src;
-        return <div className="nogi-popup"><img className="img-thumbnail" src={path} /></div>;
-    }
+        let imageType = this.props.parseImage.get('type'),
+            imageData = this.props.parseImage.get('data'),
+            uri = 'data:'+imageType+';base64,'+imageData;
+        return <div className="nogi-popup"><img className="img-thumbnail" src={uri} /></div>
+    } 
 });
 
-let Column = React.createClass({
-    render() {
-        let imageComponents = this.props.data.map((item) => {
-            // return React.DOM.div({key: item}, item);
-            return <ImageComponent src={item} key={item} />;
-        });
-        return <div className="col-md-2">{imageComponents}</div>;
-    }
-});
+// let Column = React.createClass({
+//     render() {
+//         let imageComponents = this.props.data.map((item) => {
+//             // return React.DOM.div({key: item}, item);
+//             return <ImageComponent src={item} key={item} />;
+//         });
+//         return <div className="col-md-2">{imageComponents}</div>;
+//     }
+// });
 
 module.exports = React.createClass({
     getInitialState() {
