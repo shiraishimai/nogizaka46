@@ -164,3 +164,9 @@ require('babel-register')({
 
 // ImageSearcher('http://chisaem.tistory.com/164').parse();
 // ImageSearcher('http://940525.tistory.com/90').parse();
+// ImageSearcher('http://noginono.tistory.com/795').parse();
+
+
+// ImageSearcher('http://tokyopopline.com/archives/55689').parse();
+
+console.log(process.argv);
