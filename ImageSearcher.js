@@ -1,4 +1,6 @@
 'use strict';
+const SUFFIX_ORIG = ':orig';
+
 var cheerio = require('cheerio'),
     fs = require('graceful-fs'),
     Util = require('./Util.js'),
@@ -129,6 +131,12 @@ class QualityImageSearcher extends ImageSearcher {
 
 
 class HTMLSearcher extends ImageFetcher {
+    parse(callback) {
+        let signature = '[HTMLSearcher parse]';
+        this.getBody((body) => {
+            this.fetchImageElement(cheerio.load(body));
+        });
+    }
     getBody(callback) {
         let signature = '[HTMLSearcher getBody]';
         Util.request(signature, this.sourceUrl, (result) => {
@@ -145,12 +153,6 @@ class HTMLSearcher extends ImageFetcher {
     }
 }
 class TistoryImageSearcher extends HTMLSearcher {
-    parse(callback) {
-        let signature = '[TistoryImageSearcher parse]';
-        this.getBody((body) => {
-            this.fetchImageElement(cheerio.load(body));
-        });
-    }
     fetchImageElement($) {
         let signature = '[TistoryImageSearcher fetchImageElement]';
         console.log(signature);
@@ -161,6 +163,26 @@ class TistoryImageSearcher extends HTMLSearcher {
         }).bind(this));
     }
 }
+class TwitterImageSearcher extends HTMLSearcher {
+    fetchImageElement($) {
+        let signature = '[TwitterParser fetchImageElement]';
+        console.log(signature);
+        $(".AdaptiveMedia-photoContainer").each((index, imageElement) => {
+            let image = {};
+            image.requestUrl = $(imageElement).attr('data-image-url') + SUFFIX_ORIG;
+            this.imageRequest(image);
+        });
+    }
+    saveImageFromStream(caller, image, readStream, callback) {
+        let signature = '[TwitterParser saveImageFromStream]',
+            destination = './imgData/' + path.basename(image.requestUrl.replace(SUFFIX_ORIG, '')),
+            writeStream = fs.createWriteStream(destination);
+        readStream.pipe(writeStream);
+        readStream.on('end', () => {
+            console.log(destination, 'saved!');
+        });
+    }
+}
 
 let ImageSearcherMultiplexer = (sourceUrl, limit) => {
     switch (true) {
@@ -168,6 +190,8 @@ let ImageSearcherMultiplexer = (sourceUrl, limit) => {
             return new QualityImageSearcher(sourceUrl, limit);
         case !!~sourceUrl.indexOf('tistory'):
             return new TistoryImageSearcher(sourceUrl);
+        case !!~sourceUrl.indexOf('twitter'):
+            return new TwitterImageSearcher(sourceUrl);
         default:
             return new ImageSearcher(sourceUrl, limit);
     }

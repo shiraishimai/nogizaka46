@@ -1,11 +1,12 @@
 'use strict';
-var promise = require('bluebird'),
+let promise = require('bluebird'),
     https = require('https'),
     http = require('http'),
     uuid = 0,
     uid = 20396;
 
 class Util {
+    // @deprecates
     static request(caller, requestOption, callback) {
         let protocol = http;
         if (typeof requestOption === 'string' || requestOption instanceof String) {
@@ -20,10 +21,10 @@ class Util {
         }).end();
     }
     
-    static zpad(x, zeros) { 
+    static leftPad(x, len, pad) { 
         x = x.toString();
-        if (x.length >= zeros) return x;
-        return ('0'.repeat(zeros) + x).slice(-zeros); 
+        if (x.length >= len) return x;
+        return ((pad || '0').repeat(len) + x).slice(-len); 
     }
 
     static getUID() {
@@ -31,6 +32,13 @@ class Util {
     }
     static getUUID() {
         return ++uuid;
+    }
+
+    static isString(ref) {
+        return Object.prototype.toString.call(ref) === '[object String]';
+    }
+    static isFunction(ref) {
+        return typeof ref === 'function';
     }
 }
 

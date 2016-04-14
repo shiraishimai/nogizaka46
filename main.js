@@ -1,3 +1,4 @@
+'use strict';
 require('babel-register')({
     presets: ["react"]
 });
@@ -139,11 +140,22 @@ require('babel-register')({
 // ImageSearcher('http://storage.mantan-web.jp/images/2015/12/30/20151230dog00m200018000c/021_size6.jpg').parse()
 // ImageSearcher('http://storage.mantan-web.jp/images/2015/12/29/20151229dog00m200047000c/018_size10.jpg').parse()
 
+// added 2016-01-19
+// ImageSearcher('http://storage.mantan-web.jp/images/2016/01/18/20160118dog00m200014000c/007_size10.jpg').parse()
+//// ImageSearcher('http://mdpr.jp/photo/images/2016/01/18/w720c-e_1952109.jpg').parse()
+// ImageSearcher('http://mdpr.jp/photo/images/2016/01/18/c-e_1952109.jpg').parse() // !!!!
+// http://nikkan-spa.jp/1020992/img_0040
+// http://mdpr.jp/news/detail/1560381
+// http://tokyopopline.com/archives/55782
+// http://tokyopopline.com/archives/55689
+
 // @TODO
 // (new ImageSearcher('http://tokyopopline.com/archives/54057')).crawl();
 
 // http://mantan-web.jp/gallery/2015/12/30/20151230dog00m200057000c/002.html
 // http://news.dwango.jp/2015/12/31/69608/idol/
+// http://news.dwango.jp/2016/01/04/70181/idol/
+// http://www.asahi.com/articles/ASHDS428PHDSUCVL00G.html
 
 // var SessionManager = require('./SessionManager.js');
 // SessionManager.setToken('./imgData/00.jpg');
@@ -164,6 +176,66 @@ require('babel-register')({
 
 // ImageSearcher('http://chisaem.tistory.com/164').parse();
 // ImageSearcher('http://940525.tistory.com/90').parse();
+
+// ImageSearcher('http://notitle33.tistory.com/1027').parse();
+
+// ImageSearcher('https://twitter.com/BLTTV/status/683638331557597184').parse();
+// ImageSearcher('https://twitter.com/BLTTV/status/683628259410489344').parse();
+// ImageSearcher('https://twitter.com/BLTTV/status/683620404720619520').parse();
+// ImageSearcher('https://twitter.com/BLTTV/status/683614761016135680').parse();
+// ImageSearcher('https://twitter.com/BLTTV/status/683608422994984960').parse();
+// ImageSearcher('https://twitter.com/BLTTV/status/683601250500255744').parse();
+// ImageSearcher('https://twitter.com/BLTTV/status/683589311875293184').parse();
+// ImageSearcher('https://twitter.com/BLTTV/status/683581461966925824').parse();
+// ImageSearcher('https://twitter.com/BLTTV/status/683570770811826176').parse();
+// ImageSearcher('https://twitter.com/7_netshopping/status/683919071704780800').parse();
+
+
+// console.log(process.env.PARSE_APP_ID, process.env.PARSE_KEY);
+// var Parse = require('parse/node');
+// var promise = require('bluebird');
+// Parse.initialize(process.env.PARSE_APP_ID, process.env.PARSE_KEY);
+// var TestClass = Parse.Object.extend('TestClass'),
+//     testInstance = new TestClass();
+// testInstance.save({
+//     md5: "testMD5",
+//     filename: "testFilename"
+// }).then(obj => {
+//     console.log('Success!', obj);
+// }, error => {
+//     console.log('Error Parse.save:', error);
+// });
+
+// class TestClass extends Parse.Object {
+//     constructor(md5, filename) {
+//         super('TestClass');
+//         super.set('md5', md5);
+//         super.set('filename', filename);
+//     }
+// }
+// Parse.Object.registerSubclass('TestClass', TestClass);
+
+// (new TestClass("setInsideConstructor", "yesyesyes")).save().then(obj => {
+//     console.log('Success!', obj);
+// }, error => {
+//     console.log('Error Parse.save:', error);
+// });
+// let promises = [];
+// for (let i=0;i<3;i++) {
+//     promises.push((new TestClass("looping"+i, i+"ObjectTest")).save())
+// }
+// promise.all(promises).then((results) => {
+//     console.log('Promise mutation successful!', results);
+// });
+// new Parse.Query(TestClass).first().then(result => {
+//     console.log(result);
+//     console.log(result.get('md5'), result.get('filename'));
+// }, err => {
+//     console.log('Error:', err); 
+// });
+
+// require("./thumbnailGen.js");
+
 // ImageSearcher('http://noginono.tistory.com/795').parse();
 
 

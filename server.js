@@ -85,3 +85,64 @@ app.get('/', (request, response) => {
         response.send(htmlCache);
     }
 });
+
+
+app.get('/', (request, response) => {
+    response.setHeader('Content-Type', 'text/html');
+    if (!htmlCache) {
+        let Parse = require('parse/node');
+        Parse.initialize(process.env.PARSE_APP_ID, process.env.PARSE_KEY);
+        class HashThumb extends Parse.Object {
+            constructor(md5, data) {
+                super('HashThumb');
+                this.hash = md5;
+                this.data = data;
+            }
+            save() {
+                return super.save({
+                    hash: this.hash,
+                    data: this.data
+                });
+            }
+        }
+        Parse.Object.registerSubclass('HashThumb', HashThumb);
+        
+        let query = new Parse.Query(HashThumb);
+        query.descending('updateAt');
+        query.find(results => {
+            console.log(results);
+            htmlCache = ReactDOMServer.renderToStaticMarkup(React.DOM.html({
+                children: [
+                    React.DOM.head(null,
+                        React.DOM.title(null, "Nogizaka"),
+                        React.DOM.link({
+                            rel: "stylesheet",
+                            href: "//maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css"
+                        })
+                    ),
+                    React.DOM.body(null, 
+                        React.DOM.div({id:'content'}, ImageList({
+                                list: results
+                            })),
+                        // React.DOM.script({src: '//fb.me/react-0.14.3.min.js'}),
+                        // React.DOM.script({src: '//fb.me/react-dom-0.14.3.min.js'})
+                        React.DOM.script({src: '//fb.me/react-0.14.5.js'}),
+                        React.DOM.script({src: '//fb.me/react-dom-0.14.5.js'}),
+                        React.DOM.script({src: '//ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js'}),
+                        React.DOM.script({src: '//maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js'})
+                    )
+                ]
+            }));
+            response.send(htmlCache);
+            
+            setTimeout(function() {
+                htmlCache = void 0;
+            }, 60 * 60 * 1000);
+        }, err => {
+            console.log('Error:', err);
+            return response.status(500).send('Error getting Parse...');
+        });
+    } else {
+        response.send(htmlCache);
+    }
+});
