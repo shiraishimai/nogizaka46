@@ -66,60 +66,60 @@ let gm = require('gm'),
 			writeStream.on('error', reject);
 		});
 	},
-	destinationPromise = (dir, stream, filename) => {
-		// Form metadata
-        let destination = path.resolve(dir || '.');
-		if (filename.indexOf('?') > 0) {
-			filename = filename.replace(/\?.*$/, '');	// Remove parameter
-		}
-		// Find extension
-		switch (path.extname(filename).toLowerCase()) {
-			case '.bmp':
-			case '.jpg':
-			case '.gif':
-			case '.png':
-			case '.jpeg':
-			case '.tiff':
-				break;
-			default:
-				// @TODO pipe to GM to obtain filename
-				return new promise((resolve, reject) => {
-					let gm = require('gm'),
-						gmStream = gm(stream).format((error, properties) => {
-							if (error) {
-								console.log('[GM Error]', error);
-								return resolve([stream, path.resolve(destination, filename, '.jpg')]);
-							}
-							console.log('[GM format]', properties);
-							switch (properties) {
-								case 'JPEG':
-									filename += '.jpg';
-									break;
-								case 'GIF':
-									filename += '.gif';
-									break;
-								case 'PNG':
-									filename += '.png';
-									break;
-								case 'TIFF':
-									filename += '.tiff';
-									break;
-								case 'BMP':
-									filename += '.bmp';
-									break;
-								default:
-									filename += '.jpg';
-									break;
-							}
-							destination = path.resolve(destination, filename);
-							return resolve([gmStream, destination]);
-						}).stream();
-				});
-				break;
-		}
-		destination = path.resolve(destination, filename);
-		return [stream, destination];
-	},
+	// destinationPromise = (dir, stream, filename) => {
+	// 	// Form metadata
+ //        let destination = path.resolve(dir || '.');
+	// 	if (filename.indexOf('?') > 0) {
+	// 		filename = filename.replace(/\?.*$/, '');	// Remove parameter
+	// 	}
+	// 	// Find extension
+	// 	switch (path.extname(filename).toLowerCase()) {
+	// 		case '.bmp':
+	// 		case '.jpg':
+	// 		case '.gif':
+	// 		case '.png':
+	// 		case '.jpeg':
+	// 		case '.tiff':
+	// 			break;
+	// 		default:
+	// 			// @TODO pipe to GM to obtain filename
+	// 			return new promise((resolve, reject) => {
+	// 				let gm = require('gm'),
+	// 					gmStream = gm(stream).format((error, properties) => {
+	// 						if (error) {
+	// 							console.log('[GM Error]', error);
+	// 							return resolve([stream, path.resolve(destination, filename, '.jpg')]);
+	// 						}
+	// 						console.log('[GM format]', properties);
+	// 						switch (properties) {
+	// 							case 'JPEG':
+	// 								filename += '.jpg';
+	// 								break;
+	// 							case 'GIF':
+	// 								filename += '.gif';
+	// 								break;
+	// 							case 'PNG':
+	// 								filename += '.png';
+	// 								break;
+	// 							case 'TIFF':
+	// 								filename += '.tiff';
+	// 								break;
+	// 							case 'BMP':
+	// 								filename += '.bmp';
+	// 								break;
+	// 							default:
+	// 								filename += '.jpg';
+	// 								break;
+	// 						}
+	// 						destination = path.resolve(destination, filename);
+	// 						return resolve([gmStream, destination]);
+	// 					}).stream();
+	// 			});
+	// 			break;
+	// 	}
+	// 	destination = path.resolve(destination, filename);
+	// 	return [stream, destination];
+	// },
 	/**
 	 * @return [<Stream> stream, <String> filename]
 	 */
@@ -159,6 +159,12 @@ let gm = require('gm'),
 				console.log("Completed execution...");
 			});
 		});
+	},
+	createWriteStream = (targetPath) => {
+		if (!fs.existsSync(path.dirname(targetPath))) {
+			fs.mkdirSync(path.dirname(targetPath));
+		}
+		return fs.createWriteStream(targetPath);
 	};
 
 class Seed {
@@ -212,26 +218,22 @@ let integerGenerator = (limit, start) => {
 			while (i < limit) yield String.fromCharCode(base + i++);
 		};
 	};
+let dir = 'img';
 // let seed = new Seed('https://nogikoi.jp/images/play_story/member/story/n28_02_a.png', /^(.+\/n)(\d+)(_02_\w\.png)$/, integerGenerator(37))
 // 				.subLoop(/^(.+\/n\d+_02_)(\w)(\.png)$/, charGenerator(10));
 let seed = new Seed('https://nogikoi.jp/images/play_story/member/story/n28_02_a.png', /^(.+\/n)(\d+)(_02_\w\.png)$/, integerGenerator(37));
 request(seed, url => {
-	let dir = 'img';
 	return requestPromise(url)
 	.spread((stream, filename) => {
 		let promises = [],
 			// hashing = crypto.createHash('md5').setEncoding('hex'),
-			// @TODO: resolve filename as dir
-			target = path.resolve(dir, String(Util.getUUID()));
-		if (!fs.existsSync(path.dirname(target))) {
-			fs.mkdirSync(path.dirname(target));
-		}
+			target = path.resolve(dir, filename, '..', String(Util.getUUID()));
 		promises.push(hashingPromise(stream));
-		// promises.push(namingPromise(stream, filename));
+		promises.push(namingPromise(stream, filename));
 		// promises.push(dataDisposalPromise(stream, fs.createWriteStream(target)));
 		// passedStream.pipe(hashing);
 		// stream.pipe(hashing);
-		stream.pipe(fs.createWriteStream(target));
+		stream.pipe(createWriteStream(target));
 		stream.on('end', () => {
 			console.log('[ReadStream] completed');
 		});
