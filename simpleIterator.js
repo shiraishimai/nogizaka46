@@ -1,17 +1,23 @@
 'use strict';
 let gm = require('gm'),
+	Url = require('url'),
 	path = require('path'),
 	crypto = require('crypto'),
+	Stream = require('stream'),
 	fs = require('graceful-fs'),
 	Util = require('./Util.js'),
+	cheerio = require('cheerio'),
 	Request = require('request'),
 	promise = require('bluebird'),
-	Stream = require('stream'),
+	config = require('./config.js'),
 	isString = (ref) => {
 		return Object.prototype.toString.call(ref) === '[object String]';
 	},
 	isFunction = (ref) => {
 		return typeof ref === 'function';
+	},
+	isObject = (ref) => {
+		return ref === Object(ref);
 	},
 	hashingPromise = (stream) => {
 		return new promise((resolve, reject) => {
@@ -123,7 +129,7 @@ let gm = require('gm'),
 	/**
 	 * @return [<Stream> stream, <String> filename]
 	 */
-	requestPromise = (url) => {
+	requestStreamPromise = (url) => {
 		return new promise((resolve, reject) => {
 			let stream = Request(url).on('response', response => {
 				if (response.statusCode !== 200) {
@@ -142,8 +148,10 @@ let gm = require('gm'),
 			.on('error', reject).pipe(Stream.PassThrough());
 		});
 	},
+	requestPromise = promise.promisify(Request),
 	// @param <Function> requestDelegate(<String> url)
 	request = (seed, requestDelegate) => {
+		console.log('[request]');
 		return new promise((resolve, reject) => {
 			let promises = [],
 				success = 0,
@@ -173,6 +181,15 @@ class Seed {
 			this._iterator = this[Symbol.iterator] = function* () {
 				if (Array.isArray(url)) {
 					for (let seed of pool) yield seed;
+				} else if (isObject(url)) {
+					// Key/Value pair
+					for (let key in url) {
+						if (url.hasOwnProperty(key)) {
+							let obj = url[key];
+							obj.id = key;
+							yield obj;
+						}
+					}
 				} else {
 					yield url;
 				}
@@ -221,37 +238,37 @@ let integerGenerator = (limit, start) => {
 let dir = 'img';
 // let seed = new Seed('https://nogikoi.jp/images/play_story/member/story/n28_02_a.png', /^(.+\/n)(\d+)(_02_\w\.png)$/, integerGenerator(37))
 // 				.subLoop(/^(.+\/n\d+_02_)(\w)(\.png)$/, charGenerator(10));
-let seed = new Seed('https://nogikoi.jp/images/play_story/member/story/n28_02_a.png', /^(.+\/n)(\d+)(_02_\w\.png)$/, integerGenerator(37));
-request(seed, url => {
-	return requestPromise(url)
-	.spread((stream, filename) => {
-		let promises = [],
-			// hashing = crypto.createHash('md5').setEncoding('hex'),
-			target = path.resolve(dir, filename, '..', String(Util.getUUID()));
-		promises.push(hashingPromise(stream));
-		promises.push(namingPromise(stream, filename));
-		// promises.push(dataDisposalPromise(stream, fs.createWriteStream(target)));
-		// passedStream.pipe(hashing);
-		// stream.pipe(hashing);
-		stream.pipe(createWriteStream(target));
-		stream.on('end', () => {
-			console.log('[ReadStream] completed');
-		});
-		return promise.all(promises).spread((hash, name) => {
-			return new promise((resolve, reject) => {
-				fs.rename(target, path.resolve(dir, name), (error, result) => {
-					if (error) {
-						console.log('[FS Rename] temp file', target, 'failed to rename', result, 'with Error:', error);
-						return resolve(target);
-					}
-					return resolve(result);
-				});
-			});
-			// console.log(hash);
-			// return hash;
-		});
-	});
-});
+// let seed = new Seed('https://nogikoi.jp/images/play_story/member/story/n28_02_a.png', /^(.+\/n)(\d+)(_02_\w\.png)$/, integerGenerator(37));
+// request(seed, url => {
+// 	return requestStreamPromise(url)
+// 	.spread((stream, filename) => {
+// 		let promises = [],
+// 			// hashing = crypto.createHash('md5').setEncoding('hex'),
+// 			target = path.resolve(dir, filename, '..', String(Util.getUUID()));
+// 		promises.push(hashingPromise(stream));
+// 		promises.push(namingPromise(stream, filename));
+// 		// promises.push(dataDisposalPromise(stream, fs.createWriteStream(target)));
+// 		// passedStream.pipe(hashing);
+// 		// stream.pipe(hashing);
+// 		stream.pipe(createWriteStream(target));
+// 		stream.on('end', () => {
+// 			console.log('[ReadStream] completed');
+// 		});
+// 		return promise.all(promises).spread((hash, name) => {
+// 			return new promise((resolve, reject) => {
+// 				fs.rename(target, path.resolve(dir, name), (error, result) => {
+// 					if (error) {
+// 						console.log('[FS Rename] temp file', target, 'failed to rename', result, 'with Error:', error);
+// 						return resolve(target);
+// 					}
+// 					return resolve(result);
+// 				});
+// 			});
+// 			// console.log(hash);
+// 			// return hash;
+// 		});
+// 	});
+// });
 		// .spread(destinationPromise.bind(this, dir))
 		// .spread((stream, destination) => {
 		// 	if (!fs.existsSync(path.dirname(destination))) {
@@ -288,7 +305,7 @@ request(seed, url => {
 // 	// 	fs.createReadStream(url), 
 // 	// 	'img2.php?sec_key=uJS0zpWWJU91lOSPoea00jUgkVPY8rg0cf5zifL5kexRNVYmKh1fwnglVkXo52dqUpuIbVV8aS6sALVd6lHguBeAn9dhPZzvTiyo0sk7K9fCkGtwbdboIlG301vPVUve0TQ2KOhtEpHsoJDDE5Di7XW7HyTgQuesjZaWUYDOVQEmjSDSqty1X5HALEogMllLydv55met'
 // 	// ])
-// 	return requestPromise('https://nogikoi.jp/images/play_story/member/story/n36_02_a.png')
+// 	return requestStreamPromise('https://nogikoi.jp/images/play_story/member/story/n36_02_a.png')
 // 	.spread((stream, filename) => {
 // 		let promises = [];
 // 		promises.push(hashingPromise(stream));
@@ -302,3 +319,50 @@ request(seed, url => {
 // 		});
 // 	});
 // });
+
+
+let pagePromise = (url) => {
+		console.log('[pagePromise]');
+		return requestPromise(url).then(response => {
+			console.log('X-CACHE:', response.headers['x-cache']);
+			console.log('X-ORIGIN-DATE:', response.headers['x-origin-date']);
+			if (response.statusCode !== 200) {
+				console.log('[pagePromise] Status:', response.statusCode, response.statusMessage);
+				throw 'Invalid Status';
+			}
+			return response.body;
+		}).catch(error => {
+			console.log('[pagePromise] Error:', error);
+			throw error;
+		});
+	},
+	getMemberDictionary = () => {
+		console.log('[getMemberDictionary]');
+		return pagePromise(config.blogUrl).then(body => {
+			let memberDictionary = {},
+				$ = cheerio.load(body),
+				memberElementArray = $('#sidemember').find('a');
+			memberElementArray.each((index, memberElement) => {
+				let url = $(memberElement).attr('href'),
+					key = url.replace(/^\W+/, ''),
+					value = $(memberElement).find('span[class=kanji]').text();
+				memberDictionary[key] = {
+					'name': value || key,
+					'url': url
+				};
+			});
+			return memberDictionary;
+		});
+	},
+	parseIndividualMember = () => {
+		console.log('[parseIndividualMember]');
+		return getMemberDictionary().then(dict => {
+			// for (let member in dict) {
+			// 	console.log(member.url);
+			// }
+			return request(new Seed(dict), member => {
+				return promise.resolve(Url.resolve(config.blogUrl, member.url));
+			});
+		});
+	};
+parseIndividualMember();
