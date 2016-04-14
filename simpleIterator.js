@@ -336,16 +336,17 @@ let pagePromise = (url) => {
 			throw error;
 		});
 	},
-	getMemberDictionary = () => {
-		console.log('[getMemberDictionary]');
+	getMemberDictionaryPromise = () => {
+		console.log('[getMemberDictionaryPromise]');
 		return pagePromise(config.blogUrl).then(body => {
 			let memberDictionary = {},
 				$ = cheerio.load(body),
 				memberElementArray = $('#sidemember').find('a');
 			memberElementArray.each((index, memberElement) => {
-				let url = $(memberElement).attr('href'),
+				memberElement = $(memberElement);
+				let url = memberElement.attr('href'),
 					key = url.replace(/^\W+/, ''),
-					value = $(memberElement).find('span[class=kanji]').text();
+					value = memberElement.find('span[class=kanji]').text();
 				memberDictionary[key] = {
 					'name': value || key,
 					'url': url
@@ -354,15 +355,40 @@ let pagePromise = (url) => {
 			return memberDictionary;
 		});
 	},
-	parseIndividualMember = () => {
+	parseImageUrls = (body) => {
+		let $ = cheerio.load(body),
+			imageElementArray = $('.entrybody').find('img');
+		imageElementArray.each((index, imageElement) => {
+			imageElement = $(imageElement);
+			let hyperLink = imageElement.closest('a');
+			if (hyperLink.get().length) {
+				console.log(imageElement.attr('src'), 'has hyperLink', hyperLink.attr('href'));
+			} else {
+				console.log(imageElement.attr('src'), 'doesnt have links...');
+			}
+		});
+	},
+	parseMembersPromise = () => {
 		console.log('[parseIndividualMember]');
-		return getMemberDictionary().then(dict => {
+		return getMemberDictionaryPromise().then(dict => {
 			// for (let member in dict) {
 			// 	console.log(member.url);
 			// }
 			return request(new Seed(dict), member => {
-				return promise.resolve(Url.resolve(config.blogUrl, member.url));
+				let memberUrl = Url.resolve(config.blogUrl, member.url),
+					getPages = (pageNumber) => {
+						pageNumber = pageNumber || 1;
+						return pagePromise(Url.resolve(memberUrl, '?p='+pageNumber))
+							.then(parseImageUrls)
+							.then(getPages.bind(this, pageNumber++));
+					};
+
+				return getPages().catch(error => {
+					console.log('[getPages] Error:', error);
+				});
 			});
 		});
 	};
-parseIndividualMember();
+// parseMembersPromise();
+// pagePromise('http://blog.nogizaka46.com/manatsu.akimoto/?p=2').then(parseImageUrls);
+pagePromise('http://blog.nogizaka46.com/').then(parseImageUrls);
