@@ -19,6 +19,27 @@ let gm = require('gm'),
 	isObject = (ref) => {
 		return ref === Object(ref);
 	},
+	isFileExist = (filePath) => {
+		try {
+			return fs.statSync(filePath).isFile();
+		} catch (err) {
+			return false;
+		}
+	},
+	regexAddSuffix = (source) => {
+		let regex = /^.*(?=\()\((\d+)\).*$/,
+			handleRegex = (source, match, index) => {
+				console.log(source, match, arguments);
+			};
+			// executedResult = regex.exec(source);
+		// console.log(executedResult);
+		console.log(regex.exec(source), regex.lastIndex);
+		// return source.replace(, (selection, match, w, t, f) => {
+		// 	console.log(w, t, f);
+		// 	return parseInt(match) + 1;
+		// });
+		// return handleRegex.apply(null, regex.exec(source));
+	},
 	hashingPromise = (stream) => {
 		return new promise((resolve, reject) => {
 			let hashing = crypto.createHash('md5').setEncoding('hex');
@@ -173,6 +194,20 @@ let gm = require('gm'),
 			fs.mkdirSync(path.dirname(targetPath));
 		}
 		return fs.createWriteStream(targetPath);
+	},
+	renamePromise = (inputTarget, outputTarget) => {
+		return new promise((resolve, reject) => {
+			while (isFileExist(outputTarget)) {
+				outputTarget = outputTarget.replace()
+			}
+			fs.rename(target, path.resolve(dir, name), (error, result) => {
+				if (error) {
+					console.log('[FS Rename] temp file', target, 'failed to rename', result, 'with Error:', error);
+					return resolve(target);
+				}
+				return resolve(result);
+			});
+		});
 	};
 
 class Seed {
@@ -235,7 +270,33 @@ let integerGenerator = (limit, start) => {
 			while (i < limit) yield String.fromCharCode(base + i++);
 		};
 	};
-let dir = 'img';
+let dir = 'img',
+	imagesDisposalRequest = (seed) => {
+		return request(seed, url => {
+			return requestStreamPromise(url)
+			.spread((stream, filename) => {
+				let promises = [],
+					target = path.resolve(dir, filename, '..', String(Util.getUUID()));
+				promises.push(hashingPromise(stream));
+				promises.push(namingPromise(stream, filename));
+				stream.pipe(createWriteStream(target));
+				stream.on('end', () => {
+					console.log('[ReadStream] completed');
+				});
+				return promise.all(promises).spread((hash, name) => {
+					return new promise((resolve, reject) => {
+						fs.rename(target, path.resolve(dir, name), (error, result) => {
+							if (error) {
+								console.log('[FS Rename] temp file', target, 'failed to rename', result, 'with Error:', error);
+								return resolve(target);
+							}
+							return resolve(result);
+						});
+					});
+				});
+			});
+		});
+	};
 // let seed = new Seed('https://nogikoi.jp/images/play_story/member/story/n28_02_a.png', /^(.+\/n)(\d+)(_02_\w\.png)$/, integerGenerator(37))
 // 				.subLoop(/^(.+\/n\d+_02_)(\w)(\.png)$/, charGenerator(10));
 // let seed = new Seed('https://nogikoi.jp/images/play_story/member/story/n28_02_a.png', /^(.+\/n)(\d+)(_02_\w\.png)$/, integerGenerator(37));
@@ -356,17 +417,19 @@ let pagePromise = (url) => {
 		});
 	},
 	parseImageUrls = (body) => {
-		let $ = cheerio.load(body),
+		let urlArray = [],
+			$ = cheerio.load(body),
 			imageElementArray = $('.entrybody').find('img');
 		imageElementArray.each((index, imageElement) => {
 			imageElement = $(imageElement);
 			let hyperLink = imageElement.closest('a');
 			if (hyperLink.get().length) {
-				console.log(imageElement.attr('src'), 'has hyperLink', hyperLink.attr('href'));
+				urlArray.push(hyperLink.attr('href').replace('img1', 'img2').replace('id=', 'sec_key='));
 			} else {
-				console.log(imageElement.attr('src'), 'doesnt have links...');
+				urlArray.push(imageElement.attr('src'));
 			}
 		});
+		return urlArray;
 	},
 	parseMembersPromise = () => {
 		console.log('[parseIndividualMember]');
@@ -391,4 +454,7 @@ let pagePromise = (url) => {
 	};
 // parseMembersPromise();
 // pagePromise('http://blog.nogizaka46.com/manatsu.akimoto/?p=2').then(parseImageUrls);
-pagePromise('http://blog.nogizaka46.com/').then(parseImageUrls);
+// pagePromise('http://blog.nogizaka46.com/').then(parseImageUrls).then(arr => {
+// 	console.log(arr);
+// });
+console.log(regexAddSuffix("testing (1).png"));
