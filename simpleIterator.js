@@ -26,19 +26,21 @@ let gm = require('gm'),
 			return false;
 		}
 	},
+	isDirectoryExist = (dirPath) => {
+		try {
+			return fs.statSync(dirPath).isDirectory();
+		} catch (err) {
+			return false;
+		}	
+	},
 	regexAddSuffix = (source) => {
-		let regex = /^.*(?=\()\((\d+)\).*$/,
-			handleRegex = (source, match, index) => {
-				console.log(source, match, arguments);
-			};
-			// executedResult = regex.exec(source);
-		// console.log(executedResult);
-		console.log(regex.exec(source), regex.lastIndex);
-		// return source.replace(, (selection, match, w, t, f) => {
-		// 	console.log(w, t, f);
-		// 	return parseInt(match) + 1;
-		// });
-		// return handleRegex.apply(null, regex.exec(source));
+		let regex = /(\d+)(?=\)\D*$)/;
+		if (!regex.test(source)) {
+			return source.replace(/\.[^.]+$/, "(0)$&");
+		}
+		return source.replace(regex, (selection, match, index, fullText) => {
+			return parseInt(selection) + 1;
+		});
 	},
 	hashingPromise = (stream) => {
 		return new promise((resolve, reject) => {
@@ -150,11 +152,11 @@ let gm = require('gm'),
 	/**
 	 * @return [<Stream> stream, <String> filename]
 	 */
-	requestStreamPromise = (url) => {
+	requestStreamPromise = (options) => {
 		return new promise((resolve, reject) => {
-			let stream = Request(url).on('response', response => {
+			let stream = Request(options).on('response', response => {
 				if (response.statusCode !== 200) {
-	                return reject(['NetworkError', response.statusCode, url].join(' '));
+	                return reject(['NetworkError', response.statusCode, JSON.stringify(options)].join(' '));
 	            }
 	            let dataDisposition = response.headers['content-disposition'],
 					filenameFound = dataDisposition && dataDisposition.match(/filename=(.*)/i),
@@ -162,7 +164,7 @@ let gm = require('gm'),
 				if (filenameFound && filenameFound.length >= 2) {
 					filename = decodeURIComponent(filenameFound[1].replace(/['"]/g, ''));
 				} else {
-					filename = path.basename(url);
+					filename = path.basename(options.url || url);
 				}
 	            resolve([stream, filename]);
 			})
@@ -170,43 +172,56 @@ let gm = require('gm'),
 		});
 	},
 	requestPromise = promise.promisify(Request),
-	// @param <Function> requestDelegate(<String> url)
-	request = (seed, requestDelegate) => {
-		console.log('[request]');
+	// @param <Function> processDelegate(<Object>)
+	batchProcess = (seed, processDelegate) => {
+		console.log('[batchProcess]');
 		return new promise((resolve, reject) => {
 			let promises = [],
 				success = 0,
 				fail = 0;
-			for (let url of seed) {
-				promises.push(requestDelegate(url).then(result => {
-					console.log((++success)+'/'+(success+fail)+':', url, "saved to", result);
+			for (let obj of seed) {
+				promises.push(processDelegate(obj).then(result => {
+					console.log((++success)+'/'+(success+fail)+':', obj, 'saved to', result);
 				}).catch(error => {
-					console.log((++fail)+'/'+(success+fail)+':', "Failed saving", url, "Error:", error);
+					console.log((++fail)+'/'+(success+fail)+':', 'Failed saving', obj, '\nError:', error);
 				}));
 			}
 			return promise.all(promises).then(() => {
-				console.log("Completed execution...");
+				console.log('Completed execution...');
 			});
 		});
 	},
 	createWriteStream = (targetPath) => {
-		if (!fs.existsSync(path.dirname(targetPath))) {
-			fs.mkdirSync(path.dirname(targetPath));
+		if (!isDirectoryExist(path.dirname(targetPath))) {
+			let mkdirp = require('mkdirp');
+			mkdirp.sync(path.dirname(targetPath));
 		}
 		return fs.createWriteStream(targetPath);
 	},
 	renamePromise = (inputTarget, outputTarget) => {
 		return new promise((resolve, reject) => {
 			while (isFileExist(outputTarget)) {
-				outputTarget = outputTarget.replace()
+				outputTarget = regexAddSuffix(outputTarget);
 			}
-			fs.rename(target, path.resolve(dir, name), (error, result) => {
+			fs.rename(inputTarget, outputTarget, (error, result) => {
 				if (error) {
-					console.log('[FS Rename] temp file', target, 'failed to rename', result, 'with Error:', error);
-					return resolve(target);
+					console.log('[FS Rename] temp file', inputTarget, 'failed to rename', outputTarget, 'with Error:', error);
+					return resolve(inputTarget);
 				}
-				return resolve(result);
+				return resolve(outputTarget);
 			});
+		});
+	},
+	tokenRequestPromise = (url) => {
+		return requestPromise(url).then(response => {
+			if (response.statusCode !== 200) {
+				throw ['NetworkError', response.statusCode, url].join(' ');
+			}
+			let cookie = response.headers['set-cookie'];
+			return cookie && cookie[0] || cookie;
+		}).catch(error => {
+			console.log('[tokenRequestPromise] Error:\n', error);
+			throw error;
 		});
 	};
 
@@ -215,7 +230,7 @@ class Seed {
 		if (!regex || !pool) {
 			this._iterator = this[Symbol.iterator] = function* () {
 				if (Array.isArray(url)) {
-					for (let seed of pool) yield seed;
+					for (let seed of url) yield seed;
 				} else if (isObject(url)) {
 					// Key/Value pair
 					for (let key in url) {
@@ -270,9 +285,10 @@ let integerGenerator = (limit, start) => {
 			while (i < limit) yield String.fromCharCode(base + i++);
 		};
 	};
-let dir = 'img',
+let dir = 'img/blog/',
 	imagesDisposalRequest = (seed) => {
-		return request(seed, url => {
+		console.log('[imagesDisposalRequest]');
+		return batchProcess(seed, url => {
 			return requestStreamPromise(url)
 			.spread((stream, filename) => {
 				let promises = [],
@@ -281,26 +297,56 @@ let dir = 'img',
 				promises.push(namingPromise(stream, filename));
 				stream.pipe(createWriteStream(target));
 				stream.on('end', () => {
-					console.log('[ReadStream] completed');
+					console.log('[ReadStream] completed', url);
 				});
 				return promise.all(promises).spread((hash, name) => {
-					return new promise((resolve, reject) => {
-						fs.rename(target, path.resolve(dir, name), (error, result) => {
-							if (error) {
-								console.log('[FS Rename] temp file', target, 'failed to rename', result, 'with Error:', error);
-								return resolve(target);
-							}
-							return resolve(result);
-						});
-					});
+					return renamePromise(target, path.resolve(dir, name));
+					// return new promise((resolve, reject) => {
+					// 	fs.rename(target, path.resolve(dir, name), (error, result) => {
+					// 		if (error) {
+					// 			console.log('[FS Rename] temp file', target, 'failed to rename', result, 'with Error:', error);
+					// 			return resolve(target);
+					// 		}
+					// 		return resolve(result);
+					// 	});
+					// });
 				});
 			});
 		});
+	},
+	blogImageDisposalPromise = (tokenUrl) => {
+		let imageUrl = tokenUrl.replace('img1', 'img2').replace('id=', 'sec_key=');
+		return tokenRequestPromise(tokenUrl)
+			.then(token => {
+				return requestStreamPromise({
+					url: imageUrl,
+					headers: {
+						'Cookie': token
+					}
+				});
+			})
+			.spread((stream, filename) => {
+				let promises = [],
+					target = path.resolve(dir, filename, '..', String(Util.getUUID()));
+				promises.push(hashingPromise(stream));
+				promises.push(namingPromise(stream, filename));
+				stream.pipe(createWriteStream(target));
+				stream.on('end', () => {
+					console.log('[ReadStream] completed', tokenUrl);
+				});
+				return promise.all(promises).spread((hash, name) => {
+					return renamePromise(target, path.resolve(dir, name));
+				});
+			});
+	},
+	blogImagesDisposalRequest = (seed) => {
+		console.log('[blogImagesDisposalRequest]');
+		return batchProcess(seed, blogImageDisposalPromise);
 	};
 // let seed = new Seed('https://nogikoi.jp/images/play_story/member/story/n28_02_a.png', /^(.+\/n)(\d+)(_02_\w\.png)$/, integerGenerator(37))
 // 				.subLoop(/^(.+\/n\d+_02_)(\w)(\.png)$/, charGenerator(10));
 // let seed = new Seed('https://nogikoi.jp/images/play_story/member/story/n28_02_a.png', /^(.+\/n)(\d+)(_02_\w\.png)$/, integerGenerator(37));
-// request(seed, url => {
+// batchProcess(seed, url => {
 // 	return requestStreamPromise(url)
 // 	.spread((stream, filename) => {
 // 		let promises = [],
@@ -360,7 +406,7 @@ let dir = 'img',
 
 // Test
 // let seed = new Seed(path.resolve('./test'));
-// request(seed, url => {
+// batchProcess(seed, url => {
 // 	let dir = 'img';
 // 	// return promise.resolve([
 // 	// 	fs.createReadStream(url), 
@@ -382,23 +428,22 @@ let dir = 'img',
 // });
 
 
-let pagePromise = (url) => {
-		console.log('[pagePromise]');
-		return requestPromise(url).then(response => {
-			console.log('X-CACHE:', response.headers['x-cache']);
-			console.log('X-ORIGIN-DATE:', response.headers['x-origin-date']);
+let pagePromise = (options) => {
+		console.log('[pagePromise]', options);
+		return requestPromise(options).then(response => {
+			// console.log('X-CACHE:', response.headers['x-cache']);
+			// console.log('X-ORIGIN-DATE:', response.headers['x-origin-date']);
 			if (response.statusCode !== 200) {
-				console.log('[pagePromise] Status:', response.statusCode, response.statusMessage);
-				throw 'Invalid Status';
+				throw ['NetworkError', response.statusCode, JSON.stringify(options)].join(' ');
 			}
 			return response.body;
 		}).catch(error => {
-			console.log('[pagePromise] Error:', error);
+			console.log('[pagePromise] Error:\n', error);
 			throw error;
 		});
 	},
 	getMemberDictionaryPromise = () => {
-		console.log('[getMemberDictionaryPromise]');
+		// console.log('[getMemberDictionaryPromise]');
 		return pagePromise(config.blogUrl).then(body => {
 			let memberDictionary = {},
 				$ = cheerio.load(body),
@@ -417,6 +462,7 @@ let pagePromise = (url) => {
 		});
 	},
 	parseImageUrls = (body) => {
+		console.log('[parseImageUrls]');
 		let urlArray = [],
 			$ = cheerio.load(body),
 			imageElementArray = $('.entrybody').find('img');
@@ -424,7 +470,7 @@ let pagePromise = (url) => {
 			imageElement = $(imageElement);
 			let hyperLink = imageElement.closest('a');
 			if (hyperLink.get().length) {
-				urlArray.push(hyperLink.attr('href').replace('img1', 'img2').replace('id=', 'sec_key='));
+				urlArray.push(hyperLink.attr('href'));
 			} else {
 				urlArray.push(imageElement.attr('src'));
 			}
@@ -432,29 +478,48 @@ let pagePromise = (url) => {
 		return urlArray;
 	},
 	parseMembersPromise = () => {
-		console.log('[parseIndividualMember]');
+		console.log('[parseMembersPromise]');
 		return getMemberDictionaryPromise().then(dict => {
-			// for (let member in dict) {
-			// 	console.log(member.url);
-			// }
-			return request(new Seed(dict), member => {
+			// return batchProcess(new Seed(dict), member => {
+			// 	let memberUrl = Url.resolve(config.blogUrl, member.url),
+			// 		getPages = (pageNumber) => {
+			// 			pageNumber = pageNumber || 1;
+			// 			return pagePromise(Url.resolve(memberUrl, '?p='+pageNumber))
+			// 				.then(parseImageUrls)
+			// 				.then(getPages.bind(this, pageNumber++));
+			// 		};
+
+			// 	return getPages().catch(error => {
+			// 		console.log('[getPages] Error:', error);
+			// 	});
+			// });
+			let member, seed = new Seed(dict);
+			for (member of seed) {
 				let memberUrl = Url.resolve(config.blogUrl, member.url),
 					getPages = (pageNumber) => {
 						pageNumber = pageNumber || 1;
 						return pagePromise(Url.resolve(memberUrl, '?p='+pageNumber))
 							.then(parseImageUrls)
-							.then(getPages.bind(this, pageNumber++));
+							.then(urlArray => {return new Seed(urlArray);})
+							.then(blogImagesDisposalRequest);
+							// .then(imagesDisposalRequest);
+							// .then(getPages.bind(this, pageNumber++));
+							// @TODO: unleash recursion
 					};
-
+				// @TODO: batch process?
 				return getPages().catch(error => {
 					console.log('[getPages] Error:', error);
 				});
-			});
+			}
 		});
 	};
-// parseMembersPromise();
+parseMembersPromise().then(() => {
+	console.log('Task completed!');
+});
+// blogImageDisposalPromise('http://dcimg.awalker.jp/img1.php?id=DDlpr23DwYnfmhETU5mmXFoJ9GgPrCVhNaucxoyirzMkG3X0xxVUiiwiL3NgBs5xy73EoNtC1BI3q1zRKkbPLyTYnRwDZKPXdr0f1IWM6usPUWrV8m0mFa0hcnSMeSOBaKvv2UhGAv191ZuEHsq2y1M4R2Hh2qVxXzPeNYvZ8cbfK2qwCsHTMyfzExwzdFJBmFjy39Mi').then(result => {
+// 	console.log(result);
+// });
 // pagePromise('http://blog.nogizaka46.com/manatsu.akimoto/?p=2').then(parseImageUrls);
 // pagePromise('http://blog.nogizaka46.com/').then(parseImageUrls).then(arr => {
 // 	console.log(arr);
 // });
-console.log(regexAddSuffix("testing (1).png"));
