@@ -6,6 +6,32 @@ let promise = require('bluebird'),
     uid = 20396;
 
 class Util {
+    static isArray(ref) {
+        return Array.isArray(ref);
+    }
+    static isString(ref) {
+        return Object.prototype.toString.call(ref) === '[object String]';
+    }
+    static isFunction(ref) {
+        return typeof ref === 'function';
+    }
+    static isObject(ref) {
+        return ref === Object(ref);
+    }
+    static isFileExist(filePath) {
+        try {
+            return fs.statSync(filePath).isFile();
+        } catch (err) {
+            return false;
+        }
+    }
+    static isDirectoryExist(dirPath) {
+        try {
+            return fs.statSync(dirPath).isDirectory();
+        } catch (err) {
+            return false;
+        }
+    }
     // @deprecates
     static request(caller, requestOption, callback) {
         let protocol = http;
