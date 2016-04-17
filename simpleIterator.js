@@ -5,6 +5,7 @@ let gm = require('gm'),
 	crypto = require('crypto'),
 	Stream = require('stream'),
 	fs = require('graceful-fs'),
+	Seed = require('./Seed.js'),
 	Util = require('./Util.js'),
 	cheerio = require('cheerio'),
 	Request = require('request'),
@@ -174,7 +175,6 @@ let gm = require('gm'),
 	requestPromise = promise.promisify(Request),
 	// @param <Function> processDelegate(<Object>)
 	batchProcess = (seed, processDelegate) => {
-		console.log('[batchProcess]');
 		return new promise((resolve, reject) => {
 			let promises = [],
 				success = 0,
@@ -183,11 +183,11 @@ let gm = require('gm'),
 				promises.push(processDelegate(obj).then(result => {
 					console.log((++success)+'/'+(success+fail)+':', obj, 'saved to', result);
 				}).catch(error => {
-					console.log((++fail)+'/'+(success+fail)+':', 'Failed saving', obj, '\nError:', error);
+					console.log('\x1b[31m', (++fail)+'/'+(success+fail)+':', 'Failed saving', obj, '\nError:', error, '\x1b[0m');
 				}));
 			}
 			return promise.all(promises).then(() => {
-				console.log('Completed execution...');
+				console.log('[batchProcess] Completed execution...');
 			});
 		});
 	},
@@ -225,66 +225,52 @@ let gm = require('gm'),
 		});
 	};
 
-class Seed {
-	constructor(url, regex, pool) {
-		if (!regex || !pool) {
-			this._iterator = this[Symbol.iterator] = function* () {
-				if (Array.isArray(url)) {
-					for (let seed of url) yield seed;
-				} else if (isObject(url)) {
-					// Key/Value pair
-					for (let key in url) {
-						if (url.hasOwnProperty(key)) {
-							let obj = url[key];
-							obj.id = key;
-							yield obj;
-						}
-					}
-				} else {
-					yield url;
-				}
-			};
-		} else {
-			let regexp = new RegExp(regex);
-			this._iterator = this[Symbol.iterator] = function* () {
-				pool = isFunction(pool) ? pool() : pool;
-				for (let seed of pool) {
-					yield url.replace(regexp, "$1"+seed+"$3");
-				}
-			};
-		}
-		return this;
-	}
-	subLoop(regex, pool) {
-		let regexp = new RegExp(regex),
-			outterLoop = this._iterator;
-		this._iterator = this[Symbol.iterator] = function* () {
-			let iterator = outterLoop();
-			for (let result of iterator) {
-				let newPool = isFunction(pool) ? pool() : pool;
-				for (let seed of newPool) {
-					yield result.replace(regexp, "$1"+seed+"$3");
-				}
-			}
-		};
-		return this;
-	}
-}
+// class Seed {
+// 	constructor(url, regex, pool) {
+// 		if (!regex || !pool) {
+// 			this._iterator = this[Symbol.iterator] = function* () {
+// 				if (Array.isArray(url)) {
+// 					for (let seed of url) yield seed;
+// 				} else if (isObject(url)) {
+// 					// Key/Value pair
+// 					for (let key in url) {
+// 						if (url.hasOwnProperty(key)) {
+// 							let obj = url[key];
+// 							obj.id = key;
+// 							yield obj;
+// 						}
+// 					}
+// 				} else {
+// 					yield url;
+// 				}
+// 			};
+// 		} else {
+// 			let regexp = new RegExp(regex);
+// 			this._iterator = this[Symbol.iterator] = function* () {
+// 				pool = isFunction(pool) ? pool() : pool;
+// 				for (let seed of pool) {
+// 					yield url.replace(regexp, "$1"+seed+"$3");
+// 				}
+// 			};
+// 		}
+// 		return this;
+// 	}
+// 	subLoop(regex, pool) {
+// 		let regexp = new RegExp(regex),
+// 			outterLoop = this._iterator;
+// 		this._iterator = this[Symbol.iterator] = function* () {
+// 			let iterator = outterLoop();
+// 			for (let result of iterator) {
+// 				let newPool = isFunction(pool) ? pool() : pool;
+// 				for (let seed of newPool) {
+// 					yield result.replace(regexp, "$1"+seed+"$3");
+// 				}
+// 			}
+// 		};
+// 		return this;
+// 	}
+// }
 
-let integerGenerator = (limit, start) => {
-		return function* () {
-			let base = start || 0,
-				i = 0;
-			while (i < limit) yield base + i++;
-		};
-	}, 
-	charGenerator = (limit, startChar) => {
-		return function* () {
-			let base = startChar && startChar.charCodeAt(0) || 'a'.charCodeAt(0),
-				i = 0;
-			while (i < limit) yield String.fromCharCode(base + i++);
-		};
-	};
 let dir = 'img/blog/',
 	imagesDisposalRequest = (seed) => {
 		console.log('[imagesDisposalRequest]');
@@ -340,7 +326,7 @@ let dir = 'img/blog/',
 			});
 	},
 	blogImagesDisposalRequest = (seed) => {
-		console.log('[blogImagesDisposalRequest]');
+		// console.log('[blogImagesDisposalRequest]');
 		return batchProcess(seed, blogImageDisposalPromise);
 	};
 // let seed = new Seed('https://nogikoi.jp/images/play_story/member/story/n28_02_a.png', /^(.+\/n)(\d+)(_02_\w\.png)$/, integerGenerator(37))
@@ -462,7 +448,7 @@ let pagePromise = (options) => {
 		});
 	},
 	parseImageUrls = (body) => {
-		console.log('[parseImageUrls]');
+		// console.log('[parseImageUrls]');
 		let urlArray = [],
 			$ = cheerio.load(body),
 			imageElementArray = $('.entrybody').find('img');
@@ -478,7 +464,7 @@ let pagePromise = (options) => {
 		return urlArray;
 	},
 	parseMembersPromise = () => {
-		console.log('[parseMembersPromise]');
+		// console.log('[parseMembersPromise]');
 		return getMemberDictionaryPromise().then(dict => {
 			// return batchProcess(new Seed(dict), member => {
 			// 	let memberUrl = Url.resolve(config.blogUrl, member.url),
@@ -493,24 +479,34 @@ let pagePromise = (options) => {
 			// 		console.log('[getPages] Error:', error);
 			// 	});
 			// });
-			let member, seed = new Seed(dict);
-			for (member of seed) {
-				let memberUrl = Url.resolve(config.blogUrl, member.url),
-					getPages = (pageNumber) => {
-						pageNumber = pageNumber || 1;
-						return pagePromise(Url.resolve(memberUrl, '?p='+pageNumber))
-							.then(parseImageUrls)
-							.then(urlArray => {return new Seed(urlArray);})
-							.then(blogImagesDisposalRequest);
-							// .then(imagesDisposalRequest);
-							// .then(getPages.bind(this, pageNumber++));
-							// @TODO: unleash recursion
-					};
-				// @TODO: batch process?
-				return getPages().catch(error => {
-					console.log('[getPages] Error:', error);
-				});
-			}
+			// let member, seed = new Seed(dict);
+			// for (member of seed) {
+			// 	let memberUrl = Url.resolve(config.blogUrl, member.url),
+			// 		getPages = (pageNumber) => {
+			// 			pageNumber = pageNumber || 1;
+			// 			return pagePromise(Url.resolve(memberUrl, '?p='+pageNumber))
+			// 				.then(parseImageUrls)
+			// 				.then(urlArray => {return new Seed(urlArray);})
+			// 				.then(blogImagesDisposalRequest);
+			// 				// .then(imagesDisposalRequest);
+			// 				// .then(getPages.bind(this, pageNumber++));
+			// 				// @TODO: unleash recursion
+			// 		};
+			// 	// @TODO: batch process?
+			// 	return getPages().catch(error => {
+			// 		console.log('[getPages] Error:', error);
+			// 	});
+			// }
+			let seed = new Seed('http://blog.nogizaka46.com/mai.shiraishi/?p={}', Seed.integerGenerator(24, 1));
+			return batchProcess(seed, url => {
+				return pagePromise(url)
+					.then(parseImageUrls)
+					// .then(urlArray => {return new Seed(urlArray);})
+					.then(blogImagesDisposalRequest);
+					// .then(imagesDisposalRequest);
+					// .then(getPages.bind(this, pageNumber++));
+					// @TODO: unleash recursion
+			});
 		});
 	};
 parseMembersPromise().then(() => {
@@ -522,4 +518,10 @@ parseMembersPromise().then(() => {
 // pagePromise('http://blog.nogizaka46.com/manatsu.akimoto/?p=2').then(parseImageUrls);
 // pagePromise('http://blog.nogizaka46.com/').then(parseImageUrls).then(arr => {
 // 	console.log(arr);
+// });
+// getMemberDictionaryPromise().then(dict => {
+// 	let seed = new Seed('http://blog.nogizaka46.com/{manatsu.akimoto}/?p={}', Object.keys(dict), integerGenerator(2, 1));
+// 	for (let x of seed) {
+// 		console.log(x);
+// 	}
 // });
