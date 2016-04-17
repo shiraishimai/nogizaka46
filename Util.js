@@ -1,5 +1,6 @@
 'use strict';
 let promise = require('bluebird'),
+    fs = require('graceful-fs'),
     https = require('https'),
     http = require('http'),
     uuid = 0,
