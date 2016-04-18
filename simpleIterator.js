@@ -1,4 +1,8 @@
 'use strict';
+const FILE_REGEX = /(\d+)(?=\)\D*$)/,
+    CHECK_FILE_REGEX = /\(\d+\)(?=[^)]*$)/,
+    BASE64 = 'base64';
+
 let gm = require('gm'),
     Url = require('url'),
     path = require('path'),
@@ -12,20 +16,30 @@ let gm = require('gm'),
     promise = require('bluebird'),
     config = require('./config.js'),
     regexAddSuffix = (source) => {
-        let regex = /(\d+)(?=\)\D*$)/;
-        if (!regex.test(source)) {
+        // Check if fileIndex exist
+        if (fileIndex.hasOwnProperty(source)) {
+            return source.replace(FILE_REGEX, (selection, match, index, fullText) => {
+                return ++fileIndex[source];
+            });
+        }
+        if (!CHECK_FILE_REGEX.test(source)) {
+            // Add file to fileIndex
+            fileIndex[source] = 0;
             return source.replace(/\.[^.]+$/, "(0)$&");
         }
-        return source.replace(regex, (selection, match, index, fullText) => {
+        // If optimized, this won't be executed
+        return source.replace(FILE_REGEX, (selection, match, index, fullText) => {
             return parseInt(selection) + 1;
         });
     },
-    hashingPromise = (stream) => {
+    hashingPromise = (stream, encoding) => {
+        encoding = encoding || BASE64;  // Can be 'hex'
         return new promise((resolve, reject) => {
-            let hashing = crypto.createHash('md5').setEncoding('hex');
+            let hashing = crypto.createHash('md5').setEncoding(encoding);
             stream.pipe(hashing);
             hashing.on('finish', () => {
-                resolve(hashing.read());
+                // If BASE64, last 2 char will be '=='
+                resolve(encoding === BASE64 ? (hashing.read()).slice(0, -2) : hashing.read());
             });
             hashing.on('error', error => {
                 console.log("[hashingPromise error]", error);
@@ -96,7 +110,7 @@ let gm = require('gm'),
         });
     },
     requestPromise = promise.promisify(Request),
-    // @param <Function> processDelegate(<Object>)
+    // @param <Function> processDelegate(<Object>) => Promise
     batchProcess = (seed, processDelegate) => {
         return new promise((resolve, reject) => {
             let promises = [],
@@ -148,8 +162,9 @@ let gm = require('gm'),
         });
     };
 
-let imagesDisposalRequest = (seed) => {
+let imagesDisposalRequest = (seed, dir) => {
         console.log('[imagesDisposalRequest]');
+        dir = dir || config.blogDir; // @TODO other default dir
         return batchProcess(seed, url => {
             return requestStreamPromise(url)
             .spread((stream, filename) => {
@@ -167,7 +182,8 @@ let imagesDisposalRequest = (seed) => {
             });
         });
     };
-let blogImageDisposalPromise = (tokenUrl) => {
+let blogImageDisposalPromise = (tokenUrl, dir) => {
+        dir = dir || config.blogDir;
         let imageUrl = tokenUrl.replace('img1', 'img2').replace('id=', 'sec_key=');
         return tokenRequestPromise(tokenUrl)
             .then(token => {
@@ -261,10 +277,10 @@ let pagePromise = (options) => {
             });
         });
     };
-let dir = 'img/blog/';
-parseMembersPromise().then(() => {
-    console.log('Task completed!');
-});
+// let dir = 'img/blog/';
+// parseMembersPromise().then(() => {
+//     console.log('Task completed!');
+// });
 // blogImageDisposalPromise('http://dcimg.awalker.jp/img1.php?id=DDlpr23DwYnfmhETU5mmXFoJ9GgPrCVhNaucxoyirzMkG3X0xxVUiiwiL3NgBs5xy73EoNtC1BI3q1zRKkbPLyTYnRwDZKPXdr0f1IWM6usPUWrV8m0mFa0hcnSMeSOBaKvv2UhGAv191ZuEHsq2y1M4R2Hh2qVxXzPeNYvZ8cbfK2qwCsHTMyfzExwzdFJBmFjy39Mi').then(result => {
 //  console.log(result);
 // });
@@ -278,3 +294,70 @@ parseMembersPromise().then(() => {
 //      console.log(x);
 //  }
 // });
+let fileIndex = {},
+    database,
+    start = () => {
+        return new promise((resolve, reject) => {
+            // Prepare database
+            try {
+                database = require(config.databasePath);
+            } catch (error) {
+                console.log('Unable to load', config.databasePath);
+                database = [];
+            }
+            // Prepare file indexing for optimization (Optional)
+            // Get the largest number of 
+            fs.readdir(config.blogDir, (error, list) => {
+                if (error) return resolve();
+                let key, index;
+                for (let file of list) {
+                    if (!CHECK_FILE_REGEX.test(file)) continue;
+                    key = file.replace(CHECK_FILE_REGEX, '');
+                    index = parseInt(file.match(FILE_REGEX)[0]);
+                    if (!fileIndex.hasOwnProperty(key) || fileIndex[key] < index) {
+                        fileIndex[key] = index;
+                    }
+                }
+                resolve();
+            });
+        });
+    }, end = () => {
+        // Save database
+        fs.writeFileSync(config.databasePath, JSON.stringify(database));
+        console.log('End of process');
+    };
+
+let recursiveReadDirPromise = (dir, promiseDelegate) => {
+    return new promise((resolve, reject) => {
+        let promises = [];
+        fs.readdir(dir, (error, list) => {
+            if (error) return reject(['Error readdir:', error].join(' '));
+            list.forEach((item) => {
+                let target = path.resolve(dir, item);
+                // @TODO: use a general method to determine whether target is file or directory
+                if (Util.isFileExist(target)) {
+                    promises.push(promiseDelegate(target));
+                } else if (Util.isDirectoryExist(target)) {
+                    promises.push(recursiveReadDirPromise(target, promiseDelegate));
+                }
+            });
+            process.nextTick(resolve.bind(this, promise.all(promises)));
+        });
+    });
+};
+
+start().then(() => {
+    // console.log(fileIndex);
+    // return parseMembersPromise().then(() => {
+    //     console.log('Task completed!');
+    // });
+    // console.log(database);
+    // return recursiveReadDirPromise(config.blogDir, file => {
+    //     return hashingPromise(fs.createReadStream(file));
+    // }).then(arrayOfHash => {
+    //     console.log(arrayOfHash);
+    //     database = arrayOfHash;
+    // }).catch(error => {
+    //     console.log('Error:', error);
+    // });
+}).finally(end);
