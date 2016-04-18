@@ -6,15 +6,18 @@ let promise = require('bluebird'),
     uuid = 0,
     uid = 20396;
 
+const STRING = '[object String]',
+    FUNCTION = 'function';
+
 class Util {
     static isArray(ref) {
         return Array.isArray(ref);
     }
     static isString(ref) {
-        return Object.prototype.toString.call(ref) === '[object String]';
+        return Object.prototype.toString.call(ref) === STRING;
     }
     static isFunction(ref) {
-        return typeof ref === 'function';
+        return typeof ref === FUNCTION;
     }
     static isObject(ref) {
         return ref === Object(ref);
@@ -59,13 +62,6 @@ class Util {
     }
     static getUUID() {
         return ++uuid;
-    }
-
-    static isString(ref) {
-        return Object.prototype.toString.call(ref) === '[object String]';
-    }
-    static isFunction(ref) {
-        return typeof ref === 'function';
     }
 }
 
