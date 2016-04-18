@@ -1,6 +1,8 @@
 'use strict';
-const FILE_REGEX = /(\d+)(?=\)\D*$)/,
+const 
     CHECK_FILE_REGEX = /\(\d+\)(?=[^)]*$)/,
+    OLD_FILE_REGEX = /(\d+)(?=\)\D*$)/,
+    NEW_FILE_REGEX = /\.[^.]+$/,
     BASE64 = 'base64';
 
 let gm = require('gm'),
@@ -17,18 +19,17 @@ let gm = require('gm'),
     config = require('./config.js'),
     regexAddSuffix = (source) => {
         // Check if fileIndex exist
-        if (fileIndex.hasOwnProperty(source)) {
-            return source.replace(FILE_REGEX, (selection, match, index, fullText) => {
-                return ++fileIndex[source];
-            });
+        if (fileIndex.hasOwnProperty(path.basename(source))) {
+            return source.replace(NEW_FILE_REGEX, "("+(++fileIndex[path.basename(source)])+")$&");
         }
+        // Check if source is fresh
         if (!CHECK_FILE_REGEX.test(source)) {
             // Add file to fileIndex
-            fileIndex[source] = 0;
-            return source.replace(/\.[^.]+$/, "(0)$&");
+            fileIndex[path.basename(source)] = 0;
+            return source.replace(NEW_FILE_REGEX, "(0)$&");
         }
-        // If optimized, this won't be executed
-        return source.replace(FILE_REGEX, (selection, match, index, fullText) => {
+        // If source has quotational expression
+        return source.replace(OLD_FILE_REGEX, (selection, match, index, fullText) => {
             return parseInt(selection) + 1;
         });
     },
@@ -313,7 +314,7 @@ let fileIndex = {},
                 for (let file of list) {
                     if (!CHECK_FILE_REGEX.test(file)) continue;
                     key = file.replace(CHECK_FILE_REGEX, '');
-                    index = parseInt(file.match(FILE_REGEX)[0]);
+                    index = parseInt(file.match(OLD_FILE_REGEX)[0]);
                     if (!fileIndex.hasOwnProperty(key) || fileIndex[key] < index) {
                         fileIndex[key] = index;
                     }
@@ -348,9 +349,9 @@ let recursiveReadDirPromise = (dir, promiseDelegate) => {
 
 start().then(() => {
     // console.log(fileIndex);
-    // return parseMembersPromise().then(() => {
-    //     console.log('Task completed!');
-    // });
+    return parseMembersPromise().then(() => {
+        console.log('Task completed!');
+    });
     // console.log(database);
     // return recursiveReadDirPromise(config.blogDir, file => {
     //     return hashingPromise(fs.createReadStream(file));
