@@ -11,20 +11,6 @@ let gm = require('gm'),
     Request = require('request'),
     promise = require('bluebird'),
     config = require('./config.js'),
-    isFileExist = (filePath) => {
-        try {
-            return fs.statSync(filePath).isFile();
-        } catch (err) {
-            return false;
-        }
-    },
-    isDirectoryExist = (dirPath) => {
-        try {
-            return fs.statSync(dirPath).isDirectory();
-        } catch (err) {
-            return false;
-        }
-    },
     regexAddSuffix = (source) => {
         let regex = /(\d+)(?=\)\D*$)/;
         if (!regex.test(source)) {
@@ -129,7 +115,7 @@ let gm = require('gm'),
         });
     },
     createWriteStream = (targetPath) => {
-        if (!isDirectoryExist(path.dirname(targetPath))) {
+        if (!Util.isDirectoryExist(path.dirname(targetPath))) {
             let mkdirp = require('mkdirp');
             mkdirp.sync(path.dirname(targetPath));
         }
@@ -137,7 +123,7 @@ let gm = require('gm'),
     },
     renamePromise = (inputTarget, outputTarget) => {
         return new promise((resolve, reject) => {
-            while (isFileExist(outputTarget)) {
+            while (Util.isFileExist(outputTarget)) {
                 outputTarget = regexAddSuffix(outputTarget);
             }
             fs.rename(inputTarget, outputTarget, (error, result) => {
