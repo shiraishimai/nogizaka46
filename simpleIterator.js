@@ -40,7 +40,15 @@ let gm = require('gm'),
             stream.pipe(hashing);
             hashing.on('finish', () => {
                 // If BASE64, last 2 char will be '=='
-                resolve(encoding === BASE64 ? (hashing.read()).slice(0, -2) : hashing.read());
+                let hash = encoding === BASE64 ? (hashing.read()).slice(0, -2) : hashing.read();
+                // @TODO: check if hash exist
+                if (hashTable.indexOf(hash) >= 0) {
+                    reject(['Hash already exist!', hash].join(' '));
+                } else {
+                    // Add to hashTable
+                    hashTable.push(hash);    
+                    resolve(hash);
+                }
             });
             hashing.on('error', error => {
                 console.log("[hashingPromise error]", error);
@@ -81,6 +89,18 @@ let gm = require('gm'),
             });
         });
     },
+    sizeCheckPromise = (stream, filename) => {
+        return new promise((resolve, reject) => {
+            gm(stream).size({bufferStream: true}, (error, properties) => {
+                if (error) {
+                    console.log('[sizeCheckPromise error]', error);
+                    return resolve();
+                }
+                if (properties.width < 150 || properties.height < 150) return reject('Size too small');
+                return resolve(properties);
+            });
+        });
+    },
     dataDisposalPromise = (readStream, writeStream) => {
         return new promise((resolve, reject) => {
             readStream.pipe(writeStream);
@@ -103,7 +123,7 @@ let gm = require('gm'),
                 if (filenameFound && filenameFound.length >= 2) {
                     filename = decodeURIComponent(filenameFound[1].replace(/['"]/g, ''));
                 } else {
-                    filename = path.basename(options.url || url);
+                    filename = path.basename(options.url || options);
                 }
                 resolve([stream, filename]);
             })
@@ -113,24 +133,57 @@ let gm = require('gm'),
     requestPromise = promise.promisify(Request),
     // @param <Function> processDelegate(<Object>) => Promise
     batchProcess = (seed, processDelegate) => {
-        return new promise((resolve, reject) => {
-            let promises = [],
-                success = 0,
-                fail = 0;
-            for (let obj of seed) {
-                promises.push(processDelegate(obj).then(result => {
-                    console.log((++success)+'/'+(success+fail)+':', obj, 'saved to', result);
-                }).catch(error => {
-                    console.log('\x1b[31m', (++fail)+'/'+(success+fail)+':', 'Failed saving', obj, '\nError:', error, '\x1b[0m');
-                }));
-            }
-            return promise.all(promises).then(() => {
-                console.log('[batchProcess] Completed execution...');
-            });
+        let promises = [],
+            success = 0,
+            fail = 0;
+        for (let obj of seed) {
+            promises.push(processDelegate(obj).then(result => {
+                console.log((++success)+'/'+(success+fail)+':', obj, 'saved to', result);
+            }).catch(error => {
+                console.log('\x1b[31m', (++fail)+'/'+(success+fail)+':', 'Failed saving', obj, '\nError:', error, '\x1b[0m');
+            }));
+        }
+        return promise.all(promises).then(() => {
+            console.log('[batchProcess] Completed execution...');
         });
+    },
+    // @param <Function> processDelegate(<Object>) => Promise
+    sequentialProcess = (seed, processDelegate) => {
+        let iterator = seed[Symbol.iterator](),
+            success = 0,
+            fail = 0,
+            obj,
+            recursiveExecute = () => {
+                if (obj = iterator.next().value) {
+                    return processDelegate(obj).then(result => {
+                        console.log((++success)+'/'+(success+fail)+':', obj, 'saved to', result);
+                    }).catch(error => {
+                        console.log('\x1b[31m', (++fail)+'/'+(success+fail)+':', 'Failed saving', obj, '\nError:', error, '\x1b[0m');
+                    }).finally(recursiveExecute);
+                }
+            };
+        return recursiveExecute().then(() => {
+            console.log('[sequentialProcess] Completed execution...');
+        });
+        // return new promise((resolve, reject) => {
+        //     let promises = [],
+        //         success = 0,
+        //         fail = 0;
+        //     for (let obj of seed) {
+        //         promises.push(processDelegate(obj).then(result => {
+        //             console.log((++success)+'/'+(success+fail)+':', obj, 'saved to', result);
+        //         }).catch(error => {
+        //             console.log('\x1b[31m', (++fail)+'/'+(success+fail)+':', 'Failed saving', obj, '\nError:', error, '\x1b[0m');
+        //         }));
+        //     }
+        //     return promise.all(promises).then(() => {
+        //         console.log('[batchProcess] Completed execution...');
+        //     });
+        // });
     },
     createWriteStream = (targetPath) => {
         if (!Util.isDirectoryExist(path.dirname(targetPath))) {
+            console.log('Directory not exist!');
             let mkdirp = require('mkdirp');
             mkdirp.sync(path.dirname(targetPath));
         }
@@ -200,6 +253,7 @@ let blogImageDisposalPromise = (tokenUrl, dir) => {
                     target = path.resolve(dir, filename, '..', String(Util.getUUID()));
                 promises.push(hashingPromise(stream));
                 promises.push(namingPromise(stream, filename));
+                promises.push(sizeCheckPromise(stream));
                 stream.pipe(createWriteStream(target));
                 stream.on('end', () => {
                     console.log('[ReadStream] completed', tokenUrl);
@@ -266,12 +320,13 @@ let pagePromise = (options) => {
     parseMembersPromise = () => {
         // console.log('[parseMembersPromise]');
         return getMemberDictionaryPromise().then(dict => {
-            let seed = new Seed('http://blog.nogizaka46.com/mai.shiraishi/?p={}', Seed.integerGenerator(24, 1));
-            return batchProcess(seed, url => {
+            let seed = new Seed('http://blog.nogizaka46.com/{mai.shiraishi}/?p={}', Object.keys(dict), Seed.integerGenerator(24, 1));
+            // return batchProcess(seed, url => {
+            return sequentialProcess(seed, url => {
                 return pagePromise(url)
                     .then(parseImageUrls)
-                    // .then(urlArray => {return new Seed(urlArray);})
                     .then(blogImagesDisposalRequest);
+                    // .then(urlArray => {return new Seed(urlArray);})
                     // .then(imagesDisposalRequest);
                     // .then(getPages.bind(this, pageNumber++));
                     // @TODO: unleash recursion
@@ -296,35 +351,49 @@ let pagePromise = (options) => {
 //  }
 // });
 let fileIndex = {},
-    database,
+    hashTable = [],
     start = () => {
-        return new promise((resolve, reject) => {
-            // Prepare database
-            try {
-                database = require(config.databasePath);
-            } catch (error) {
-                console.log('Unable to load', config.databasePath);
-                database = [];
-            }
-            // Prepare file indexing for optimization (Optional)
-            // Get the largest number of 
-            fs.readdir(config.blogDir, (error, list) => {
-                if (error) return resolve();
-                let key, index;
-                for (let file of list) {
-                    if (!CHECK_FILE_REGEX.test(file)) continue;
-                    key = file.replace(CHECK_FILE_REGEX, '');
-                    index = parseInt(file.match(OLD_FILE_REGEX)[0]);
-                    if (!fileIndex.hasOwnProperty(key) || fileIndex[key] < index) {
-                        fileIndex[key] = index;
-                    }
-                }
-                resolve();
-            });
-        });
+        // Prepare database
+        let database;
+        try {
+            database = require(config.databasePath);
+            hashTable = database.hashTable;
+            fileIndex = database.fileIndex;
+            return promise.resolve();
+        } catch (error) {
+            console.log('Unable to load', config.databasePath);
+            return promise.all([
+                // Prepare hashTable
+                recursiveReadDirPromise(config.blogDir, file => {
+                    return hashingPromise(fs.createReadStream(file));
+                }).catch(error => {
+                    console.log('[Prepare] Error:', error);
+                }),
+                // Prepare file indexing for optimization (Optional)
+                new promise((resolve, reject) => {
+                    // Get the largest number of duplicated file dictionary
+                    fs.readdir(config.blogDir, (error, list) => {
+                        if (error) return resolve();
+                        let key, index;
+                        for (let file of list) {
+                            if (!CHECK_FILE_REGEX.test(file)) continue;
+                            key = file.replace(CHECK_FILE_REGEX, '');
+                            index = parseInt(file.match(OLD_FILE_REGEX)[0]);
+                            if (!fileIndex.hasOwnProperty(key) || fileIndex[key] < index) {
+                                fileIndex[key] = index;
+                            }
+                        }
+                        resolve();
+                    });
+                })
+            ]);
+        }
     }, end = () => {
         // Save database
-        fs.writeFileSync(config.databasePath, JSON.stringify(database));
+        fs.writeFileSync(config.databasePath, JSON.stringify({
+            hashTable: hashTable,
+            fileIndex: fileIndex
+        }));
         console.log('End of process');
     };
 
@@ -332,7 +401,7 @@ let recursiveReadDirPromise = (dir, promiseDelegate) => {
     return new promise((resolve, reject) => {
         let promises = [];
         fs.readdir(dir, (error, list) => {
-            if (error) return reject(['Error readdir:', error].join(' '));
+            if (error) return reject(['Error readdir:', JSON.stringify(error)].join(' '));
             list.forEach((item) => {
                 let target = path.resolve(dir, item);
                 // @TODO: use a general method to determine whether target is file or directory
@@ -348,17 +417,38 @@ let recursiveReadDirPromise = (dir, promiseDelegate) => {
 };
 
 start().then(() => {
-    // console.log(fileIndex);
     return parseMembersPromise().then(() => {
         console.log('Task completed!');
     });
-    // console.log(database);
-    // return recursiveReadDirPromise(config.blogDir, file => {
-    //     return hashingPromise(fs.createReadStream(file));
-    // }).then(arrayOfHash => {
-    //     console.log(arrayOfHash);
-    //     database = arrayOfHash;
-    // }).catch(error => {
-    //     console.log('Error:', error);
+    // return getMemberDictionaryPromise().then(dict => {
+    //     let seed = new Seed('http://blog.nogizaka46.com/{mai.shiraishi}/?p=', Object.keys(dict), Seed.integerGenerator(24, 1));
+    //     return sequentialProcess(seed, url => {
+    //         console.log(url);
+    //         return promise.reject(url);
+    //     });
     // });
+    // @TEST
+    // return requestStreamPromise('http://localhost:8080/img/temp3').spread((stream, filename) => {
+    // return requestStreamPromise('http://cdn2.natalie.mu/media/1304/0429/nogizaka_ando/extra/news_xlarge_DSC_0264.jpg').spread((stream, filename) => {
+    //     let promises = [];
+    //     promises.push(hashingPromise(stream));
+    //     promises.push(namingPromise(stream, filename));
+    //     promises.push(sizeCheckPromise(stream));
+    //     stream.pipe(createWriteStream(path.resolve('img', 'dump.dat')));
+    //     stream.on('end', () => {
+    //         console.log('[ReadStream] completed');
+    //     });
+    //     stream.on('error', error => {
+    //         console.log('[ReadStream] Error', error);
+    //     });
+    //     return promise.all(promises).then(resolvedArray => {
+    //         console.log('promises all success', resolvedArray);
+    //     }).catch(error => {
+    //         console.log('promises all failed', error);
+    //     });
+    // }).catch(error => {
+    //     console.log('request failed', error);
+    // });
+    // console.log(database);
+    
 }).finally(end);
