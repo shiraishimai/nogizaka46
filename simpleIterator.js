@@ -138,13 +138,14 @@ let gm = require('gm'),
             fail = 0;
         for (let obj of seed) {
             promises.push(processDelegate(obj).then(result => {
-                console.log((++success)+'/'+(success+fail)+':', obj, 'saved to', result);
+                console.log((++success)+'/'+(success+fail)+':', obj, '=>', result);
             }).catch(error => {
-                console.log('\x1b[31m', (++fail)+'/'+(success+fail)+':', 'Failed saving', obj, '\nError:', error, '\x1b[0m');
+                console.log('\x1b[31m', (++fail)+'/'+(success+fail)+':', 'Failed on', obj, '\nError:', error, '\x1b[0m');
             }));
         }
-        return promise.all(promises).then(() => {
-            console.log('[batchProcess] Completed execution...');
+        return promise.all(promises).then(resultArray => {
+            console.log('[batchProcess] Completed execution...', resultArray.length);
+            return resultArray.length;
         });
     },
     // @param <Function> processDelegate(<Object>) => Promise
@@ -153,33 +154,23 @@ let gm = require('gm'),
             success = 0,
             fail = 0,
             obj,
-            recursiveExecute = () => {
+            recursiveExecute = (accumulation) => {
+                accumulation = accumulation || 0;
                 if (obj = iterator.next().value) {
                     return processDelegate(obj).then(result => {
-                        console.log((++success)+'/'+(success+fail)+':', obj, 'saved to', result);
+                        console.log((++success)+'/'+(success+fail)+':', obj, '=>', result);
+                        return Util.isNumber(result) ? accumulation + result : 0;
                     }).catch(error => {
-                        console.log('\x1b[31m', (++fail)+'/'+(success+fail)+':', 'Failed saving', obj, '\nError:', error, '\x1b[0m');
+                        console.log('\x1b[31m', (++fail)+'/'+(success+fail)+':', 'Failed on', obj, '\nError:', error, '\x1b[0m');
+                        return accumulation;
                     }).finally(recursiveExecute);
                 }
+                return accumulation;
             };
-        return recursiveExecute().then(() => {
-            console.log('[sequentialProcess] Completed execution...');
+        return recursiveExecute().then(resultArray => {
+            console.log('[sequentialProcess] Completed execution...', resultArray.length);
+            return resultArray.length;
         });
-        // return new promise((resolve, reject) => {
-        //     let promises = [],
-        //         success = 0,
-        //         fail = 0;
-        //     for (let obj of seed) {
-        //         promises.push(processDelegate(obj).then(result => {
-        //             console.log((++success)+'/'+(success+fail)+':', obj, 'saved to', result);
-        //         }).catch(error => {
-        //             console.log('\x1b[31m', (++fail)+'/'+(success+fail)+':', 'Failed saving', obj, '\nError:', error, '\x1b[0m');
-        //         }));
-        //     }
-        //     return promise.all(promises).then(() => {
-        //         console.log('[batchProcess] Completed execution...');
-        //     });
-        // });
     },
     createWriteStream = (targetPath) => {
         if (!Util.isDirectoryExist(path.dirname(targetPath))) {
@@ -251,7 +242,11 @@ let blogImageDisposalPromise = (tokenUrl, dir) => {
             .spread((stream, filename) => {
                 let promises = [],
                     target = path.resolve(dir, filename, '..', String(Util.getUUID()));
-                promises.push(hashingPromise(stream));
+                promises.push(hashingPromise(stream).then(hash => {
+                    // Register hash to temporary dictionary as a key to remove hash from hashTable
+                    tempDictionary[target] = hash;
+                    return hash;
+                }));
                 promises.push(namingPromise(stream, filename));
                 promises.push(sizeCheckPromise(stream));
                 stream.pipe(createWriteStream(target));
@@ -259,13 +254,15 @@ let blogImageDisposalPromise = (tokenUrl, dir) => {
                     console.log('[ReadStream] completed', tokenUrl);
                 });
                 return promise.all(promises).spread((hash, name) => {
+                    tempDictionary[target] = null;
+                    delete tempDictionary[target];
                     return renamePromise(target, path.resolve(dir, name));
                 });
             });
-    },
-    blogImagesDisposalRequest = (seed) => {
-        // console.log('[blogImagesDisposalRequest]');
-        return batchProcess(seed, blogImageDisposalPromise);
+    // },
+    // blogImagesDisposalRequest = (seed) => {
+    //     // console.log('[blogImagesDisposalRequest]');
+    //     return batchProcess(seed, blogImageDisposalPromise);
     };
 
 let pagePromise = (options) => {
@@ -325,7 +322,12 @@ let pagePromise = (options) => {
             return sequentialProcess(seed, url => {
                 return pagePromise(url)
                     .then(parseImageUrls)
-                    .then(blogImagesDisposalRequest);
+                    .then(seed => {
+                        return batchProcess(seed, tokenUrl => {
+                            return blogImageDisposalPromise(tokenUrl, dict);
+                        });
+                    });
+                    // .then(blogImagesDisposalRequest);
                     // .then(urlArray => {return new Seed(urlArray);})
                     // .then(imagesDisposalRequest);
                     // .then(getPages.bind(this, pageNumber++));
@@ -352,6 +354,7 @@ let pagePromise = (options) => {
 // });
 let fileIndex = {},
     hashTable = [],
+    tempDictionary = {},
     start = () => {
         // Prepare database
         let database;
@@ -419,6 +422,10 @@ let recursiveReadDirPromise = (dir, promiseDelegate) => {
 start().then(() => {
     return parseMembersPromise().then(() => {
         console.log('Task completed!');
+    }).then(() => {
+        console.log('Clean up');
+        //@TODO
+
     });
     // return getMemberDictionaryPromise().then(dict => {
     //     let seed = new Seed('http://blog.nogizaka46.com/{mai.shiraishi}/?p=', Object.keys(dict), Seed.integerGenerator(24, 1));

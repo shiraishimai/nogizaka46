@@ -9,7 +9,7 @@ app.listen(app.get('port'), function() {
     console.log('Server started: http://localhost:'+app.get('port')+'/') ;
 });
 
-app.use('/img', express.static('./imgData'));
+app.use('/img', express.static('./img'));
 
 app.get('/200', (request, response) => {
     return response.status(200).send('HTTP 200');
