@@ -10,6 +10,9 @@ const STRING = '[object String]',
     FUNCTION = 'function';
 
 class Util {
+    static isNumber(ref) {
+        return Number.isInteger(ref) || isNaN(ref) === false;
+    }
     static isArray(ref) {
         return Array.isArray(ref);
     }

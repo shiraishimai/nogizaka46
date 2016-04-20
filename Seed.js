@@ -30,12 +30,25 @@ class Seed {
             };
         yield* iteration(param[0]);
     }
+    getIterator() {
+        return this[Symbol.iterator]();
+    }
     each(delegate) {
         if (!Util.isFunction(delegate)) return;
-        this.__paramInstances = []; // Enable paramInstances to store intermediate state of generators
+        this.activateParamInstance();
         for (let seed of this[Symbol.iterator]()) {
             delegate.apply(this, this.__paramInstances);
         }
+        this.deactivateParamInstance();
+    }
+    applyParamInstances(delegate) {
+        if (!Util.isFunction(delegate)) return;
+        return delegate.apply(this, this.__paramInstances);
+    }
+    activateParamInstance() {
+        this.__paramInstances = []; // Enable paramInstances to store intermediate state of generators
+    }
+    deactivateParamInstance() {
         this.__paramInstances = false;  // Disabling & release memory
     }
     static integerGenerator(limit, start) {
@@ -44,7 +57,7 @@ class Seed {
                 i = 0;
             while (i < limit) yield base + i++;
         };
-    } 
+    }
     static charGenerator(limit, startChar) {
         return function* () {
             let base = startChar && startChar.charCodeAt(0) || 'a'.charCodeAt(0),
