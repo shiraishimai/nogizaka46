@@ -2,12 +2,15 @@
 let Util = require('./Util.js');
 class Seed {
     constructor() {
-        this.param = Array.prototype.slice.call(arguments);
+        this.__paramInstances = false;    // Disabled
+        this.__param = Array.prototype.slice.call(arguments);
     }
     * [Symbol.iterator]() {
-        let param = this.param,
+        let param = this.__param,
+            paramInstances = this.__paramInstances,
             iteration = function* (input, index){
                 if (!input.match(/{[^}]*}/)) {
+                    if (paramInstances) paramInstances[0] = input;
                     yield input;
                     return;
                 }
@@ -18,6 +21,7 @@ class Seed {
                     };
                 if (generator) {
                     for (let seed of generator) {
+                        if (paramInstances) paramInstances[index] = seed;
                         yield* nextIteration(seed);
                     }
                 } else {
@@ -25,6 +29,14 @@ class Seed {
                 }
             };
         yield* iteration(param[0]);
+    }
+    each(delegate) {
+        if (!Util.isFunction(delegate)) return;
+        this.__paramInstances = []; // Enable paramInstances to store intermediate state of generators
+        for (let seed of this[Symbol.iterator]()) {
+            delegate.apply(this, this.__paramInstances);
+        }
+        this.__paramInstances = false;  // Disabling & release memory
     }
     static integerGenerator(limit, start) {
         return function* () {
