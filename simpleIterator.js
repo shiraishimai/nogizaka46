@@ -19,15 +19,18 @@ let gm = require('gm'),
     Request = require('request'),
     promise = require('bluebird'),
     config = require('./config.js'),
+    requestPromise = promise.promisify(Request),
+    readdirPromise = promise.promisify(fs.readdir),
     regexAddSuffix = (source) => {
+        let dirDiff = path.relative(path.resolve(config.imgDir), source);
         // Check if fileIndex exist
-        if (fileIndex.hasOwnProperty(path.basename(source))) {
-            return source.replace(NEW_FILE_REGEX, "("+(++fileIndex[path.basename(source)])+")$&");
+        if (fileIndex.has(dirDiff)) {
+            return source.replace(NEW_FILE_REGEX, "("+(++fileIndex.get(dirDiff))+")$&");
         }
         // Check if source is fresh
         if (!CHECK_FILE_REGEX.test(source)) {
             // Add file to fileIndex
-            fileIndex[path.basename(source)] = 0;
+            fileIndex.set(dirDiff, 0);
             return source.replace(NEW_FILE_REGEX, "(0)$&");
         }
         // If source has quotational expression
@@ -43,11 +46,11 @@ let gm = require('gm'),
             hashing.on('finish', () => {
                 // If BASE64, last 2 char will be '=='
                 let hash = encoding === BASE64 ? (hashing.read()).slice(0, -2) : hashing.read();
-                if (hashTable.indexOf(hash) >= 0) {
+                if (hashTable.has(hash)) {
                     reject(['Hash already exist!', hash].join(' '));
                 } else {
                     // Add to hashTable
-                    hashTable.push(hash);    
+                    hashTable.add(hash);    
                     resolve(hash);
                 }
             });
@@ -131,7 +134,6 @@ let gm = require('gm'),
             .on('error', reject).pipe(Stream.PassThrough());
         });
     },
-    requestPromise = promise.promisify(Request),
     // @param <Function> processDelegate(<Object>) => Promise
     batchProcess = (seed, processDelegate) => {
         if (!Util.isFunction(processDelegate)) return promise.reject('processDelegate is not a function');
@@ -230,8 +232,7 @@ let gm = require('gm'),
         });
     },
     removeDirPromise = (removingDir) => {
-        let readdirPromise = promise.promisify(fs.readdir),
-            unlinkPromise = promise.promisify(fs.unlink),
+        let unlinkPromise = promise.promisify(fs.unlink),
             rmdirPromise = promise.promisify(fs.rmdir),
             removingFile;
         return readdirPromise(removingDir).then(list => {
@@ -408,28 +409,31 @@ let pagePromise = (options) => {
 //      console.log(x);
 //  }
 // });
-let fileIndex = {},
-    hashTable = [],
+
+let dir = config.blogDir;
+
+let fileIndex = new Map(),
+    hashTable = new Set(),
     tempDictionary = {},
     start = () => {
         try {
-        // Check flags
-        for (let argument of process.argv) {
-            if (argument === CMD_CLEAN) {
-                throw console.log('Force rebuild indexing...');
+            // Check flags
+            for (let argument of process.argv) {
+                if (argument === CMD_CLEAN) {
+                    throw console.log('Force rebuild indexing...');
+                }
             }
-        }
-        // Prepare database
-        let database;
+            // Prepare database
+            let database;
             database = require(config.databasePath);
-            hashTable = database.hashTable;
-            fileIndex = database.fileIndex;
+            hashTable = new Set(database.hashTable);
+            fileIndex = new Map(database.fileIndex);
             return promise.resolve();
         } catch (error) {
             console.log('Unable to load', config.databasePath);
             return promise.all([
                 // Prepare hashTable
-                recursiveReadDirPromise(config.blogDir, file => {
+                recursiveReadDirPromise(dir, file => {
                     return hashingPromise(fs.createReadStream(file));
                 }).catch(error => {
                     console.log('[Prepare] Error:', error);
@@ -437,15 +441,15 @@ let fileIndex = {},
                 // Prepare file indexing for optimization (Optional)
                 new promise((resolve, reject) => {
                     // Get the largest number of duplicated file dictionary
-                    fs.readdir(config.blogDir, (error, list) => {
+                    fs.readdir(dir, (error, list) => {
                         if (error) return resolve();
                         let key, index;
                         for (let file of list) {
                             if (!CHECK_FILE_REGEX.test(file)) continue;
                             key = file.replace(CHECK_FILE_REGEX, '');
                             index = parseInt(file.match(OLD_FILE_REGEX)[0]);
-                            if (!fileIndex.hasOwnProperty(key) || fileIndex[key] < index) {
-                                fileIndex[key] = index;
+                            if (!fileIndex.has(key) || fileIndex.get(key) < index) {
+                                fileIndex.set(key, index);
                             }
                         }
                         resolve();
@@ -456,8 +460,8 @@ let fileIndex = {},
     }, end = () => {
         // Save database
         fs.writeFileSync(config.databasePath, JSON.stringify({
-            hashTable: hashTable,
-            fileIndex: fileIndex
+            hashTable: [...hashTable],
+            fileIndex: [...fileIndex]
         }));
         console.log('End of process');
     };
@@ -488,8 +492,19 @@ start().then(() => {
     //     console.log('[Seed each]', result, a, b, c);
     // });
     // console.log('[Seed afterEach]', seed.paramInstances);
-    
-    // return promise.resolve();
+    // let testingJson = require('./testing.json');
+    // let map = new Set(testingJson.test);
+    // let map = new Set();
+    // map.add('a');
+    // map.add('b');
+    // map.add('c');
+    // map.add('c');
+    // console.log(map);
+    // fs.writeFileSync('./testing.json', JSON.stringify({
+    //     test: [...map]
+    // }));
+    // console.log(map);
+    return promise.resolve();
     // return sequentialEachProcess(seed, (result, char, hihaho) => {
     //     console.log('[Delegate]', result, char, hihaho);
     //     return promise.resolve(1);
@@ -520,17 +535,16 @@ start().then(() => {
     //     console.log('[fs read] error', error);
     // });
 
-    let dir = config.blogDir;
-    return parseMembersPromise().then(() => {
-        console.log('Task completed!');
-    }).then(() => {
-        console.log('Cleaning up...');
-        let promises = [];
-        // remove hash
-        // promises.push();    // @TODO
-        // remove temp files
-        promises.push(removeDirPromise(path.resolve(dir, TEMP_FOLDER)));
-    });
+    // return parseMembersPromise().then(() => {
+    //     console.log('Task completed!');
+    // }).then(() => {
+    //     console.log('Cleaning up...');
+    //     let promises = [];
+    //     // remove hash
+    //     // promises.push();    // @TODO
+    //     // remove temp files
+    //     promises.push(removeDirPromise(path.resolve(dir, TEMP_FOLDER)));
+    // });
     // return getMemberDictionaryPromise().then(dict => {
     //     let seed = new Seed('http://blog.nogizaka46.com/{mai.shiraishi}/?p=', Object.keys(dict), Seed.integerGenerator(24, 1));
     //     return sequentialProcess(seed, url => {
