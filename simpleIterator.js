@@ -153,7 +153,7 @@ let gm = require('gm'),
     // @param <Function> processDelegate(<Object>) => Promise
     sequentialProcess = (seed, processDelegate) => {
         if (!Util.isFunction(processDelegate)) return promise.reject('processDelegate is not a function');
-        let iterator = seed.getIterator(),
+        let iterator = seed.getIterator && seed.getIterator() || seed[Symbol.iterator](),
             success = 0,
             fail = 0,
             obj,
@@ -178,7 +178,7 @@ let gm = require('gm'),
     // @param <Function> processDelegate(<Object>) => Promise
     sequentialEachProcess = (seed, processDelegate) => {
         if (!Util.isFunction(processDelegate)) return promise.reject('processDelegate is not a function');
-        let iterator = seed.getIterator(),
+        let iterator = seed.getIterator && seed.getIterator() || seed[Symbol.iterator](),
             success = 0,
             fail = 0,
             obj,
@@ -227,6 +227,24 @@ let gm = require('gm'),
                 }
                 return resolve(outputTarget);
             });
+        });
+    },
+    removeDirPromise = (removingDir) => {
+        let readdirPromise = promise.promisify(fs.readdir),
+            unlinkPromise = promise.promisify(fs.unlink),
+            rmdirPromise = promise.promisify(fs.rmdir),
+            removingFile;
+        return readdirPromise(removingDir).then(list => {
+            return batchProcess(list, file => {
+                removingFile = path.resolve(removingDir, file);
+                return unlinkPromise(removingFile);
+            });
+        }).then(() => {
+            return rmdirPromise(removingDir);
+        }).then(() => {
+            console.log('Clean up completed!');
+        }).catch(error => {
+            console.log('Clean up Error:', error);
         });
     },
     tokenRequestPromise = (url) => {
@@ -351,7 +369,7 @@ let pagePromise = (options) => {
         });
         return urlArray;
     },
-    parseMembersPromise = () => {
+    parseMembersPromise = (dir) => {
         // console.log('[parseMembersPromise]');
         return getMemberDictionaryPromise().then(dict => {
             let seed = new Seed('http://blog.nogizaka46.com/{mai.shiraishi}/?p={}', Object.keys(dict), Seed.integerGenerator(24, 1));
@@ -362,7 +380,7 @@ let pagePromise = (options) => {
                     .then(parseImageUrls)
                     .then(seed => {
                         return batchProcess(seed, tokenUrl => {
-                            return blogImageDisposalPromise(tokenUrl, config.blogDir, memberId);
+                            return blogImageDisposalPromise(tokenUrl, dir, memberId);
                         });
                     });
                     // .then(blogImagesDisposalRequest);
@@ -470,6 +488,7 @@ start().then(() => {
     //     console.log('[Seed each]', result, a, b, c);
     // });
     // console.log('[Seed afterEach]', seed.paramInstances);
+    
     // return promise.resolve();
     // return sequentialEachProcess(seed, (result, char, hihaho) => {
     //     console.log('[Delegate]', result, char, hihaho);
@@ -477,21 +496,41 @@ start().then(() => {
     // }).then(count => {
     //     console.log(count);
     // });
-    return renamePromise(path.resolve('testimg'), path.resolve('img', '', 'testFolder', 'img.jpg'));
-
-    // return parseMembersPromise().then(() => {
-    //     console.log('Task completed!');
-    // }).then(() => {
-    //     console.log('Clean up');
-    //     //@TODO
-    //     let hash;
-    //     for (let file in tempDictionary) {
-    //         if (tempDictionary.hasOwnProperty(file)) {
-    //             hash = tempDictionary[file];
-    //             // @TODO: remove hash from hashTable
-    //         }
-    //     }
+    // return renamePromise(path.resolve('testimg'), path.resolve('img', '', 'testFolder', 'img.jpg'));
+    // let testPath = path.resolve('img', 'testFolder');
+    // let readDirPromise = promise.promisify(fs.readdir);
+    // return readDirPromise(testPath).then(list => {
+    //     console.log('[fs read]', list);
+    //     return sequentialProcess(list, file => {
+    //         return new promise((resolve, reject) => {
+    //             let filePath = path.resolve(testPath, file);
+    //             fs.unlink(filePath, (error, result) => {
+    //                 console.log('[fs unlink]', error, result);
+    //                 return resolve();
+    //             });
+    //         });
+    //         // return renamePromise(file, path.resolve('img'))
+    //     }).then(() => {
+    //         console.log('[fs readdir] completed');
+    //         fs.rmdir(testPath, (error, result) => {
+    //             console.log('[fs rmdir]', error, result);
+    //         });
+    //     });
+    // }).catch(error => {
+    //     console.log('[fs read] error', error);
     // });
+
+    let dir = config.blogDir;
+    return parseMembersPromise().then(() => {
+        console.log('Task completed!');
+    }).then(() => {
+        console.log('Cleaning up...');
+        let promises = [];
+        // remove hash
+        // promises.push();    // @TODO
+        // remove temp files
+        promises.push(removeDirPromise(path.resolve(dir, TEMP_FOLDER)));
+    });
     // return getMemberDictionaryPromise().then(dict => {
     //     let seed = new Seed('http://blog.nogizaka46.com/{mai.shiraishi}/?p=', Object.keys(dict), Seed.integerGenerator(24, 1));
     //     return sequentialProcess(seed, url => {
