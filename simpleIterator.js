@@ -25,7 +25,9 @@ let gm = require('gm'),
         let dirDiff = path.relative(path.resolve(config.imgDir), source);
         // Check if fileIndex exist
         if (fileIndex.has(dirDiff)) {
-            return source.replace(NEW_FILE_REGEX, "("+(++fileIndex.get(dirDiff))+")$&");
+            let index = fileIndex.get(dirDiff) + 1;
+            fileIndex.set(dirDiff, index);
+            return source.replace(NEW_FILE_REGEX, "("+index+")$&");
         }
         // Check if source is fresh
         if (!CHECK_FILE_REGEX.test(source)) {
@@ -232,6 +234,7 @@ let gm = require('gm'),
         });
     },
     removeDirPromise = (removingDir) => {
+        if (!Util.isDirectoryExist(removingDir)) return promise.resolve();
         let unlinkPromise = promise.promisify(fs.unlink),
             rmdirPromise = promise.promisify(fs.rmdir),
             removingFile;
@@ -243,7 +246,7 @@ let gm = require('gm'),
         }).then(() => {
             return rmdirPromise(removingDir);
         }).then(() => {
-            console.log('Clean up completed!');
+            console.log('Clean up completed!', removingDir);
         }).catch(error => {
             console.log('Clean up Error:', error);
         });
@@ -305,13 +308,15 @@ let blogImageDisposalPromise = (tokenUrl, dir, memberId) => {
                 }));
                 promises.push(namingPromise(stream, filename));
                 promises.push(sizeCheckPromise(stream));
-                stream.pipe(createWriteStream(target));
+                stream.pipe(createWriteStream(tempFile));
                 stream.on('end', () => {
                     console.log('[ReadStream] completed', tokenUrl);
                 });
                 return promise.all(promises).spread((hash, name) => {
                     tempHash.delete(hash);
-                    return renamePromise(target, path.resolve(dir, memberId, name));
+                    return renamePromise(tempFile, path.resolve(dir, memberId, name));
+                }).catch(error => {
+                    console.log('[blogImageDisposalPromise] suppress:', error);
                 });
             });
     // },
@@ -430,46 +435,31 @@ let fileIndex = new Map(),
             return promise.resolve();
         } catch (error) {
             console.log('Unable to load', config.databasePath);
-            return promise.all([
-                // Prepare hashTable
-                recursiveReadDirPromise(dir, file => {
-                    return hashingPromise(fs.createReadStream(file));
-                }).catch(error => {
-                    console.log('[Prepare] HashTable Error:', error);
-                }),
-                // Prepare file indexing for optimization (Optional)
-                recursiveReadDirPromise(dir, file => {
-                    if (!CHECK_FILE_REGEX.test(file)) return promise.resolve();
-                    let key = file.replace(CHECK_FILE_REGEX, ''),
-                        match = file.match(OLD_FILE_REGEX),
-                        index;
-                    key = path.relative(path.resolve(config.imgDir), key);
-                    match = match && match[0];
-                    index = parseInt(match || 0);
-                    if (!fileIndex.has(key) || fileIndex.get(key) < index) {
-                        fileIndex.set(key, index);
-                    }
-                    return promise.resolve();
-                }).catch(error => {
-                    console.log('[Prepare] FileIndex Error:', error);
-                })
-                // new promise((resolve, reject) => {
-                //     // Get the largest number of duplicated file dictionary
-                //     fs.readdir(dir, (error, list) => {
-                //         if (error) return resolve();
-                //         let key, index;
-                //         for (let file of list) {
-                //             if (!CHECK_FILE_REGEX.test(file)) continue;
-                //             key = file.replace(CHECK_FILE_REGEX, '');
-                //             index = parseInt(file.match(OLD_FILE_REGEX)[0]);
-                //             if (!fileIndex.has(key) || fileIndex.get(key) < index) {
-                //                 fileIndex.set(key, index);
-                //             }
-                //         }
-                //         resolve();
-                //     });
-                // })
-            ]);
+            // remove temp folder if exist
+            return removeDirPromise(path.resolve(dir, TEMP_FOLDER)).catch(error => {}).finally(() => {
+                return promise.all([
+                    // Prepare hashTable
+                    recursiveReadDirPromise(dir, file => {
+                        return hashingPromise(fs.createReadStream(file));
+                    }),
+                    // Prepare file indexing for optimization (Optional)
+                    recursiveReadDirPromise(dir, file => {
+                        if (!CHECK_FILE_REGEX.test(file)) return promise.resolve();
+                        let key = file.replace(CHECK_FILE_REGEX, ''),
+                            match = file.match(OLD_FILE_REGEX),
+                            index;
+                        key = path.relative(path.resolve(config.imgDir), key);
+                        match = match && match[0];
+                        index = parseInt(match || 0);
+                        if (!fileIndex.has(key) || fileIndex.get(key) < index) {
+                            fileIndex.set(key, index);
+                        }
+                        return promise.resolve();
+                    })
+                ]);
+            }).catch(error => {
+                console.log('[Prepare] Error:', error);
+            });
         }
     }, end = () => {
         // Save database
@@ -481,6 +471,7 @@ let fileIndex = new Map(),
     };
 
 let recursiveReadDirPromise = (dir, promiseDelegate) => {
+    if (!Util.isDirectoryExist(dir)) return promise.reject("[recursiveReadDirPromise] Directory doesn't exist");
     return readdirPromise(dir).then(list => {
         let promises = [],
             target;
@@ -532,7 +523,7 @@ start().then(() => {
     //     test: [...map]
     // }));
     // console.log(map);
-    return promise.resolve();
+    // return promise.resolve();
     // return sequentialEachProcess(seed, (result, char, hihaho) => {
     //     console.log('[Delegate]', result, char, hihaho);
     //     return promise.resolve(1);
@@ -562,16 +553,23 @@ start().then(() => {
     //     console.log('[fs read] error', error);
     // });
 
-    // return parseMembersPromise().then(() => {
-    //     console.log('Task completed!');
-    // }).then(() => {
-    //     console.log('Cleaning up...');
-    //     let promises = [];
-    //     // remove hash
-    //     // promises.push();    // @TODO
-    //     // remove temp files
-    //     promises.push(removeDirPromise(path.resolve(dir, TEMP_FOLDER)));
-    // });
+    return parseMembersPromise().then(() => {
+        console.log('Task completed!');
+    }).then(() => {
+        console.log('Cleaning up...');
+        let promises = [];
+        // remove hash
+        promises.push(new promise((resolve, reject) => {
+            for (let hash of tempHash) {
+                hashTable.delete(hash);
+            }
+            resolve();
+        }));
+        // remove temp files
+        promises.push(removeDirPromise(path.resolve(dir, TEMP_FOLDER)));
+        return promise.all(promises);
+    });
+
     // return getMemberDictionaryPromise().then(dict => {
     //     let seed = new Seed('http://blog.nogizaka46.com/{mai.shiraishi}/?p=', Object.keys(dict), Seed.integerGenerator(24, 1));
     //     return sequentialProcess(seed, url => {
