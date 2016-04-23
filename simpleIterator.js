@@ -264,26 +264,27 @@ let gm = require('gm'),
         });
     };
 
-let imagesDisposalRequest = (seed, dir) => {
-        console.log('[imagesDisposalRequest]');
-        dir = dir || config.blogDir; // @TODO other default dir
-        return batchProcess(seed, url => {
-            return requestStreamPromise(url)
-            .spread((stream, filename) => {
-                let promises = [],
-                    target = path.resolve(dir, filename, '..', String(Util.getUUID()));
-                promises.push(hashingPromise(stream));
-                promises.push(namingPromise(stream, filename));
-                stream.pipe(createWriteStream(target));
-                stream.on('end', () => {
-                    console.log('[ReadStream] completed', url);
-                });
-                return promise.all(promises).spread((hash, name) => {
-                    return renamePromise(target, path.resolve(dir, name));
-                });
-            });
-        });
-    };
+// @deprecate
+// let imagesDisposalRequest = (seed, dir) => {
+//         console.log('[imagesDisposalRequest]');
+//         dir = dir || config.blogDir; // @TODO other default dir
+//         return batchProcess(seed, url => {
+//             return requestStreamPromise(url)
+//             .spread((stream, filename) => {
+//                 let promises = [],
+//                     target = path.resolve(dir, filename, '..', String(Util.getUUID()));
+//                 promises.push(hashingPromise(stream));
+//                 promises.push(namingPromise(stream, filename));
+//                 stream.pipe(createWriteStream(target));
+//                 stream.on('end', () => {
+//                     console.log('[ReadStream] completed', url);
+//                 });
+//                 return promise.all(promises).spread((hash, name) => {
+//                     return renamePromise(target, path.resolve(dir, name));
+//                 });
+//             });
+//         });
+//     };
 let blogImageDisposalPromise = (tokenUrl, dir, memberId) => {
         dir = dir || config.blogDir;
         memberId = memberId || '';
@@ -299,7 +300,6 @@ let blogImageDisposalPromise = (tokenUrl, dir, memberId) => {
             })
             .spread((stream, filename) => {
                 let promises = [],
-                    // target = path.resolve(dir, String(Util.getUUID()));
                     tempFile = path.resolve(dir, TEMP_FOLDER, String(Util.getUUID()));
                 promises.push(hashingPromise(stream).then(hash => {
                     // Register hash to temporary dictionary as a key to remove hash from hashTable
@@ -319,10 +319,6 @@ let blogImageDisposalPromise = (tokenUrl, dir, memberId) => {
                     console.log('[blogImageDisposalPromise] suppress:', error);
                 });
             });
-    // },
-    // blogImagesDisposalRequest = (seed) => {
-    //     // console.log('[blogImagesDisposalRequest]');
-    //     return batchProcess(seed, blogImageDisposalPromise);
     };
 
 let pagePromise = (options) => {
@@ -340,7 +336,6 @@ let pagePromise = (options) => {
         });
     },
     getMemberDictionaryPromise = () => {
-        // console.log('[getMemberDictionaryPromise]');
         return pagePromise(config.blogUrl).then(body => {
             let memberDictionary = {},
                 $ = cheerio.load(body),
@@ -359,7 +354,6 @@ let pagePromise = (options) => {
         });
     },
     parseImageUrls = (body) => {
-        // console.log('[parseImageUrls]');
         let urlArray = [],
             $ = cheerio.load(body),
             imageElementArray = $('.entrybody').find('img');
@@ -375,11 +369,8 @@ let pagePromise = (options) => {
         return urlArray;
     },
     parseMembersPromise = (dir) => {
-        // console.log('[parseMembersPromise]');
         return getMemberDictionaryPromise().then(dict => {
             let seed = new Seed('http://blog.nogizaka46.com/{mai.shiraishi}/?p={}', Object.keys(dict), Seed.integerGenerator(24, 1));
-            // return batchProcess(seed, url => {
-            // return sequentialProcess(seed, url => {
             return sequentialEachProcess(seed, (url, memberId, page) => {
                 return pagePromise(url)
                     .then(parseImageUrls)
@@ -388,31 +379,9 @@ let pagePromise = (options) => {
                             return blogImageDisposalPromise(tokenUrl, dir, memberId);
                         });
                     });
-                    // .then(blogImagesDisposalRequest);
-                    // .then(urlArray => {return new Seed(urlArray);})
-                    // .then(imagesDisposalRequest);
-                    // .then(getPages.bind(this, pageNumber++));
-                    // @TODO: unleash recursion
             });
         });
     };
-// let dir = 'img/blog/';
-// parseMembersPromise().then(() => {
-//     console.log('Task completed!');
-// });
-// blogImageDisposalPromise('http://dcimg.awalker.jp/img1.php?id=DDlpr23DwYnfmhETU5mmXFoJ9GgPrCVhNaucxoyirzMkG3X0xxVUiiwiL3NgBs5xy73EoNtC1BI3q1zRKkbPLyTYnRwDZKPXdr0f1IWM6usPUWrV8m0mFa0hcnSMeSOBaKvv2UhGAv191ZuEHsq2y1M4R2Hh2qVxXzPeNYvZ8cbfK2qwCsHTMyfzExwzdFJBmFjy39Mi').then(result => {
-//  console.log(result);
-// });
-// pagePromise('http://blog.nogizaka46.com/manatsu.akimoto/?p=2').then(parseImageUrls);
-// pagePromise('http://blog.nogizaka46.com/').then(parseImageUrls).then(arr => {
-//  console.log(arr);
-// });
-// getMemberDictionaryPromise().then(dict => {
-//  let seed = new Seed('http://blog.nogizaka46.com/{manatsu.akimoto}/?p={}', Object.keys(dict), integerGenerator(2, 1));
-//  for (let x of seed) {
-//      console.log(x);
-//  }
-// });
 
 let dir = config.blogDir;
 
@@ -486,73 +455,9 @@ let recursiveReadDirPromise = (dir, promiseDelegate) => {
         }
         return promise.all(promises);
     });
-    // return new promise((resolve, reject) => {
-    //     let promises = [];
-    //     fs.readdir(dir, (error, list) => {
-    //         if (error) return reject(['Error readdir:', JSON.stringify(error)].join(' '));
-    //         list.forEach((item) => {
-    //             let target = path.resolve(dir, item);
-    //             // @TODO: use a general method to determine whether target is file or directory
-    //             if (Util.isFileExist(target)) {
-    //                 promises.push(promiseDelegate(target));
-    //             } else if (Util.isDirectoryExist(target)) {
-    //                 promises.push(recursiveReadDirPromise(target, promiseDelegate));
-    //             }
-    //         });
-    //         process.nextTick(resolve.bind(this, promise.all(promises)));
-    //     });
-    // });
 };
 
 start().then(() => {
-    // let seed = new Seed('{}{}{}', Seed.charGenerator(10), ['hi','ha','ho']);
-    // console.log('[Seed beforeEach]', seed.paramInstances);
-    // seed.each((result, a, b, c) => {
-    //     console.log('[Seed each]', result, a, b, c);
-    // });
-    // console.log('[Seed afterEach]', seed.paramInstances);
-    // let testingJson = require('./testing.json');
-    // let map = new Set(testingJson.test);
-    // let map = new Set();
-    // map.add('a');
-    // map.add('b');
-    // map.add('c');
-    // map.add('c');
-    // console.log(map);
-    // fs.writeFileSync('./testing.json', JSON.stringify({
-    //     test: [...map]
-    // }));
-    // console.log(map);
-    // return promise.resolve();
-    // return sequentialEachProcess(seed, (result, char, hihaho) => {
-    //     console.log('[Delegate]', result, char, hihaho);
-    //     return promise.resolve(1);
-    // }).then(count => {
-    //     console.log(count);
-    // });
-    // return renamePromise(path.resolve('testimg'), path.resolve('img', '', 'testFolder', 'img.jpg'));
-    // let testPath = path.resolve('img', 'testFolder');
-    // return readdirPromise(testPath).then(list => {
-    //     console.log('[fs read]', list);
-    //     return sequentialProcess(list, file => {
-    //         return new promise((resolve, reject) => {
-    //             let filePath = path.resolve(testPath, file);
-    //             fs.unlink(filePath, (error, result) => {
-    //                 console.log('[fs unlink]', error, result);
-    //                 return resolve();
-    //             });
-    //         });
-    //         // return renamePromise(file, path.resolve('img'))
-    //     }).then(() => {
-    //         console.log('[fs readdir] completed');
-    //         fs.rmdir(testPath, (error, result) => {
-    //             console.log('[fs rmdir]', error, result);
-    //         });
-    //     });
-    // }).catch(error => {
-    //     console.log('[fs read] error', error);
-    // });
-
     return parseMembersPromise().then(() => {
         console.log('Task completed!');
     }).then(() => {
@@ -569,36 +474,4 @@ start().then(() => {
         promises.push(removeDirPromise(path.resolve(dir, TEMP_FOLDER)));
         return promise.all(promises);
     });
-
-    // return getMemberDictionaryPromise().then(dict => {
-    //     let seed = new Seed('http://blog.nogizaka46.com/{mai.shiraishi}/?p=', Object.keys(dict), Seed.integerGenerator(24, 1));
-    //     return sequentialProcess(seed, url => {
-    //         console.log(url);
-    //         return promise.reject(url);
-    //     });
-    // });
-    // @TEST
-    // return requestStreamPromise('http://localhost:8080/img/temp3').spread((stream, filename) => {
-    // return requestStreamPromise('http://cdn2.natalie.mu/media/1304/0429/nogizaka_ando/extra/news_xlarge_DSC_0264.jpg').spread((stream, filename) => {
-    //     let promises = [];
-    //     promises.push(hashingPromise(stream));
-    //     promises.push(namingPromise(stream, filename));
-    //     promises.push(sizeCheckPromise(stream));
-    //     stream.pipe(createWriteStream(path.resolve('img', 'dump.dat')));
-    //     stream.on('end', () => {
-    //         console.log('[ReadStream] completed');
-    //     });
-    //     stream.on('error', error => {
-    //         console.log('[ReadStream] Error', error);
-    //     });
-    //     return promise.all(promises).then(resolvedArray => {
-    //         console.log('promises all success', resolvedArray);
-    //     }).catch(error => {
-    //         console.log('promises all failed', error);
-    //     });
-    // }).catch(error => {
-    //     console.log('request failed', error);
-    // });
-    // console.log(database);
-    
 }).finally(end);
