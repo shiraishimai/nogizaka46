@@ -1,8 +1,8 @@
 'use strict';
 const 
-    CHECK_FILE_REGEX = /\(\d+\)(?=[^)]*$)/,
-    OLD_FILE_REGEX = /(\d+)(?=\)\D*$)/,
-    NEW_FILE_REGEX = /\.[^.]+$/,
+    CHECK_FILE_REGEX = /\(\d+\)(?=[^)]*$)/, // check whether it has ()
+    OLD_FILE_REGEX = /(\d+)(?=\)\D*$)/, // get number inside ()
+    NEW_FILE_REGEX = /\.[^.]+$/,    // get path without extension
     BASE64 = 'base64',
     TEMP_FOLDER = 'temp/',
     CMD_CLEAN = 'clean';
@@ -300,7 +300,7 @@ let blogImageDisposalPromise = (tokenUrl, dir, memberId) => {
                     tempFile = path.resolve(dir, TEMP_FOLDER, String(Util.getUUID()));
                 promises.push(hashingPromise(stream).then(hash => {
                     // Register hash to temporary dictionary as a key to remove hash from hashTable
-                    tempDictionary[target] = hash;
+                    tempHash.add(hash);
                     return hash;
                 }));
                 promises.push(namingPromise(stream, filename));
@@ -310,8 +310,7 @@ let blogImageDisposalPromise = (tokenUrl, dir, memberId) => {
                     console.log('[ReadStream] completed', tokenUrl);
                 });
                 return promise.all(promises).spread((hash, name) => {
-                    tempDictionary[target] = null;
-                    delete tempDictionary[target];
+                    tempHash.delete(hash);
                     return renamePromise(target, path.resolve(dir, memberId, name));
                 });
             });
@@ -414,7 +413,7 @@ let dir = config.blogDir;
 
 let fileIndex = new Map(),
     hashTable = new Set(),
-    tempDictionary = {},
+    tempHash = new Set(),
     start = () => {
         try {
             // Check flags
@@ -436,25 +435,40 @@ let fileIndex = new Map(),
                 recursiveReadDirPromise(dir, file => {
                     return hashingPromise(fs.createReadStream(file));
                 }).catch(error => {
-                    console.log('[Prepare] Error:', error);
+                    console.log('[Prepare] HashTable Error:', error);
                 }),
                 // Prepare file indexing for optimization (Optional)
-                new promise((resolve, reject) => {
-                    // Get the largest number of duplicated file dictionary
-                    fs.readdir(dir, (error, list) => {
-                        if (error) return resolve();
-                        let key, index;
-                        for (let file of list) {
-                            if (!CHECK_FILE_REGEX.test(file)) continue;
-                            key = file.replace(CHECK_FILE_REGEX, '');
-                            index = parseInt(file.match(OLD_FILE_REGEX)[0]);
-                            if (!fileIndex.has(key) || fileIndex.get(key) < index) {
-                                fileIndex.set(key, index);
-                            }
-                        }
-                        resolve();
-                    });
+                recursiveReadDirPromise(dir, file => {
+                    if (!CHECK_FILE_REGEX.test(file)) return promise.resolve();
+                    let key = file.replace(CHECK_FILE_REGEX, ''),
+                        match = file.match(OLD_FILE_REGEX),
+                        index;
+                    key = path.relative(path.resolve(config.imgDir), key);
+                    match = match && match[0];
+                    index = parseInt(match || 0);
+                    if (!fileIndex.has(key) || fileIndex.get(key) < index) {
+                        fileIndex.set(key, index);
+                    }
+                    return promise.resolve();
+                }).catch(error => {
+                    console.log('[Prepare] FileIndex Error:', error);
                 })
+                // new promise((resolve, reject) => {
+                //     // Get the largest number of duplicated file dictionary
+                //     fs.readdir(dir, (error, list) => {
+                //         if (error) return resolve();
+                //         let key, index;
+                //         for (let file of list) {
+                //             if (!CHECK_FILE_REGEX.test(file)) continue;
+                //             key = file.replace(CHECK_FILE_REGEX, '');
+                //             index = parseInt(file.match(OLD_FILE_REGEX)[0]);
+                //             if (!fileIndex.has(key) || fileIndex.get(key) < index) {
+                //                 fileIndex.set(key, index);
+                //             }
+                //         }
+                //         resolve();
+                //     });
+                // })
             ]);
         }
     }, end = () => {
@@ -467,22 +481,36 @@ let fileIndex = new Map(),
     };
 
 let recursiveReadDirPromise = (dir, promiseDelegate) => {
-    return new promise((resolve, reject) => {
-        let promises = [];
-        fs.readdir(dir, (error, list) => {
-            if (error) return reject(['Error readdir:', JSON.stringify(error)].join(' '));
-            list.forEach((item) => {
-                let target = path.resolve(dir, item);
-                // @TODO: use a general method to determine whether target is file or directory
-                if (Util.isFileExist(target)) {
-                    promises.push(promiseDelegate(target));
-                } else if (Util.isDirectoryExist(target)) {
-                    promises.push(recursiveReadDirPromise(target, promiseDelegate));
-                }
-            });
-            process.nextTick(resolve.bind(this, promise.all(promises)));
-        });
+    return readdirPromise(dir).then(list => {
+        let promises = [],
+            target;
+        for (let file of list) {
+            target = path.resolve(dir, file);
+            // @TODO: use a general method to determine whether target is file or directory
+            if (Util.isFileExist(target)) {
+                promises.push(promiseDelegate(target));
+            } else if (Util.isDirectoryExist(target)) {
+                promises.push(recursiveReadDirPromise(target, promiseDelegate));
+            }
+        }
+        return promise.all(promises);
     });
+    // return new promise((resolve, reject) => {
+    //     let promises = [];
+    //     fs.readdir(dir, (error, list) => {
+    //         if (error) return reject(['Error readdir:', JSON.stringify(error)].join(' '));
+    //         list.forEach((item) => {
+    //             let target = path.resolve(dir, item);
+    //             // @TODO: use a general method to determine whether target is file or directory
+    //             if (Util.isFileExist(target)) {
+    //                 promises.push(promiseDelegate(target));
+    //             } else if (Util.isDirectoryExist(target)) {
+    //                 promises.push(recursiveReadDirPromise(target, promiseDelegate));
+    //             }
+    //         });
+    //         process.nextTick(resolve.bind(this, promise.all(promises)));
+    //     });
+    // });
 };
 
 start().then(() => {
@@ -513,8 +541,7 @@ start().then(() => {
     // });
     // return renamePromise(path.resolve('testimg'), path.resolve('img', '', 'testFolder', 'img.jpg'));
     // let testPath = path.resolve('img', 'testFolder');
-    // let readDirPromise = promise.promisify(fs.readdir);
-    // return readDirPromise(testPath).then(list => {
+    // return readdirPromise(testPath).then(list => {
     //     console.log('[fs read]', list);
     //     return sequentialProcess(list, file => {
     //         return new promise((resolve, reject) => {
