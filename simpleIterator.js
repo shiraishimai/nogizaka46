@@ -5,7 +5,8 @@ const
     NEW_FILE_REGEX = /\.[^.]+$/,    // get path without extension
     BASE64 = 'base64',
     TEMP_FOLDER = 'temp/',
-    CMD_CLEAN = 'clean';
+    CMD_CLEAN = 'clean',
+    CMD_DEPTH = '--depth';
 
 let gm = require('gm'),
     Url = require('url'),
@@ -370,7 +371,7 @@ let pagePromise = (options) => {
     },
     parseMembersPromise = (dir) => {
         return getMemberDictionaryPromise().then(dict => {
-            let seed = new Seed('http://blog.nogizaka46.com/{mai.shiraishi}/?p={}', Object.keys(dict), Seed.integerGenerator(24, 1));
+            let seed = new Seed('http://blog.nogizaka46.com/{mai.shiraishi}/?p={}', Object.keys(dict), Seed.integerGenerator(pageDepth, 1));
             return sequentialEachProcess(seed, (url, memberId, page) => {
                 return pagePromise(url)
                     .then(parseImageUrls)
@@ -383,7 +384,8 @@ let pagePromise = (options) => {
         });
     };
 
-let dir = config.blogDir;
+let dir = config.blogDir,
+    pageDepth = 24;
 
 let fileIndex = new Map(),
     hashTable = new Set(),
@@ -391,9 +393,17 @@ let fileIndex = new Map(),
     start = () => {
         try {
             // Check flags
+            let hasDepth = false;
             for (let argument of process.argv) {
                 if (argument === CMD_CLEAN) {
                     throw console.log('Force rebuild indexing...');
+                }
+                if (argument === CMD_DEPTH) {
+                    hasDepth = true;
+                }
+                if (hasDepth === true && Util.isNumber(argument)) {
+                    pageDepth = parseInt(argument) || pageDepth;
+                    hasDepth = false;
                 }
             }
             // Prepare database
