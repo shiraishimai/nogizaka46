@@ -103,23 +103,6 @@ let bruteForceSearchCollection = (id, toId, lv) => {
         }
     }
     return promise.all(promises).then(() => {
-        // // Find member
-        // url = 'http://i.nogikoi.jp/assets/img/card/mypage/{17080477}.png';
-        // promises = [];
-        // for (let cardInstance of collection) {
-        //     for (let member of memberArray) {   // Heavy Exhausting
-        //         card = String(cardInstance.cardType) + String(cardInstance.cardLv) + Util.leftPad(member.id, 2) + Util.leftPad(cardInstance.cardId, 4);
-        //         promises.push(requestStreamPromise(url.replace(/{[^}]*}/, card)).spread(((cardInstance, member, stream, filename) => {
-        //             stream.pipe(createWriteStream(path.resolve('imgNogikoi', 'mypage', filename)));
-        //             stream.on('end', () => {
-        //                 console.log('[ReadStream] completed', cardInstance.cardId);
-        //             });
-        //             cardInstance.memberId = member.id;
-        //             cardInstance.memberName = member.name;
-        //         }).bind(this, cardInstance, member).catch(() => {})));
-        //     }
-        // }
-        // return promise.all(promises).then(() => {return [collection, id-1];});
         if (!collection.length) return [collection, toId];
         // Find member
         url = 'http://i.nogikoi.jp/assets/img/card/mypage/{17080477}.png';
@@ -222,43 +205,55 @@ let cardId, toCardId, cardLv, chain = promise.resolve(), ref;
 cardId = 1;
 toCardId = 73;
 cardLv = 1;
-// chain = chain.then(collectCollection.bind(this, bruteForceCollection.bind(this, cardId, cardLv)));
+ref = bruteForceCollection.bind(this, cardId, cardLv)
+chain = chain.then(collectCollection.bind(this, ref, cardId, toCardId, cardLv));
 
 // 75 ~ 148 (148)
 cardId = 75;
 toCardId = 148;
 cardLv = 1;
-// chain = chain.then(collectCollection.bind(this, bruteForceCollection.bind(this, cardId, cardLv)));
+ref = bruteForceCollection.bind(this, cardId, cardLv)
+chain = chain.then(collectCollection.bind(this, ref, cardId, toCardId, cardLv));
+
 
 // // 149 ~ 221 (222)
 cardId = 149;
 toCardId = 221;
 cardLv = 3;
-// chain = chain.then(collectCollection.bind(this, bruteForceCollection.bind(this, cardId, cardLv)));
+ref = bruteForceCollection.bind(this, cardId, cardLv)
+chain = chain.then(collectCollection.bind(this, ref, cardId, toCardId, cardLv));
+
 
 // // 223 ~ 295 (296)
 cardId = 223;
 toCardId = 295;
 cardLv = 3;
-// chain = chain.then(collectCollection.bind(this, bruteForceCollection.bind(this, cardId, cardLv)));
+ref = bruteForceCollection.bind(this, cardId, cardLv)
+chain = chain.then(collectCollection.bind(this, ref, cardId, toCardId, cardLv));
+
 
 // // Item: 297, 298, 299
 
 // // 300 <Start from Ikoma> ~ 352 (353) <Ends with Mayaa>
-// cardId = 300;
-// cardLv = 5;
-// // ???
+cardId = 300;
+toCardId = 352;
+cardLv = 5;
+ref = bruteForceSearchCollection.bind(this, cardId, toCardId, cardLv);
+chain = chain.then(collectCollection.bind(this, ref, cardId, toCardId, cardLv));
 
 // // 354 ~ 426 (427)
 cardId = 354;
 toCardId = 426;
 cardLv = 5;
-// chain = chain.then(collectCollection.bind(this, bruteForceCollection.bind(this, cardId, cardLv)));
+ref = bruteForceCollection.bind(this, cardId, cardLv)
+chain = chain.then(collectCollection.bind(this, ref, cardId, toCardId, cardLv));
 
 // // 428 <Start from Karin> ~ 468 (469) <Ends with Mayaa>
-// cardId = 428;
-// cardLv = 5;
-// // ???
+cardId = 428;
+toCardId = 468;
+cardLv = 5;
+ref = bruteForceSearchCollection.bind(this, cardId, toCardId, cardLv);
+chain = chain.then(collectCollection.bind(this, ref, cardId, toCardId, cardLv));
 
 // // Item: 470, 471, 472
 
@@ -268,27 +263,31 @@ cardLv = 5;
 cardId = 473;
 toCardId = 491;
 cardLv = 7;
-// ref = bruteForceSearchCollection.bind(this, cardId, toCardId, cardLv);
-// chain = chain.then(collectCollection.bind(this, ref));
+ref = bruteForceSearchCollection.bind(this, cardId, toCardId, cardLv);
+chain = chain.then(collectCollection.bind(this, ref, cardId, toCardId, cardLv));
 
 // // 493 ~ 521 (524) <Ends with Matsumura> (15)
 cardId = 493;
 toCardId = 521;
 cardLv = 7;
-// ref = bruteForceSearchCollection.bind(this, cardId, toCardId, cardLv);
-// chain = chain.then(collectCollection.bind(this, ref));
+ref = bruteForceSearchCollection.bind(this, cardId, toCardId, cardLv);
+chain = chain.then(collectCollection.bind(this, ref, cardId, toCardId, cardLv));
 
 // // Item: 525, 526, 527
 
 // // 528 ~ 600 (601)
 cardId = 528;
+toCardId = 600;
 cardLv = 1;
-// chain = chain.then(collectCollection.bind(this, bruteForceCollection.bind(this, cardId, cardLv)));
+ref = bruteForceCollection.bind(this, cardId, cardLv)
+chain = chain.then(collectCollection.bind(this, ref, cardId, toCardId, cardLv));
 
 // // 602 ~ 674 (675)
 cardId = 602;
+toCardId = 674;
 cardLv = 3;
-// chain = chain.then(collectCollection.bind(this, bruteForceCollection.bind(this, cardId, cardLv)));
+ref = bruteForceCollection.bind(this, cardId, cardLv)
+chain = chain.then(collectCollection.bind(this, ref, cardId, toCardId, cardLv));
 
 // // 676 ~ 698 (699) <Ends with Nanase> (12)
 cardId = 676;
@@ -300,6 +299,14 @@ chain = chain.then(collectCollection.bind(this, ref, cardId, toCardId, cardLv));
 // // Item 700, 701, 702
 
 // // 703 ~ 777 ?
+
+// Limited Event
+// 891 ~ 923 (924) <Random sequence> (17)
+cardId = 891;
+toCardId = 923;
+cardLv = 7;
+ref = bruteForceSearchCollection.bind(this, cardId, toCardId, cardLv);
+chain = chain.then(collectCollection.bind(this, ref, cardId, toCardId, cardLv));
 
 // // 1133 ~ 1201 (1202) <Ends with Mayaa> (35)
 cardId = 1133;
